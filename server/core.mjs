@@ -12,6 +12,10 @@
 //   GET  /api/backups/<name>   -> backup file
 //   POST /api/uploads?name=x   <- raw file body            -> { url, name, size, type }
 //   GET  /api/uploads/<file>   -> uploaded file (sandboxed)
+//   GET  /api/push             -> { publicKey, devices }     (VAPID key for PushManager.subscribe)
+//   POST /api/push/subscribe   <- { subscription, device }   POST /api/push/unsubscribe <- { endpoint }
+//   POST /api/push/test        <- { endpoint }               -> sends a test notification
+//   GET  /api/agenda?days=14   -> { today, timeZone, items }  (Android widget)
 //
 // When a password is configured every route except session/login/logout needs a valid session
 // cookie (HttpOnly, SameSite=Strict, HMAC-signed with a key derived from the password, so changing
@@ -22,6 +26,13 @@
 //   snapshot(name)  copy the current doc to backup `name` unless it exists (no doc: no-op)
 //   listBackups() -> [{ name, size, mtime }]   readBackup(name) -> string | null   deleteBackup(name)
 //   putFile(name, bytes, type)             getFile(name) -> { body, size } | null
+//   getItem(key) -> string | null          setItem(key, text)     small documents (push subscriptions)
+//
+// Reminders are sent as Web Push notifications. The platform passes a `scheduler` ({ set(ms|null) })
+// that calls `handle.runAlarm()` at that time (setTimeout on Node, Durable Object alarms on Cloudflare).
+
+import { agenda, collectReminders, dayKeyAt } from '../shared/calendar.js';
+import { generateVapidKeys, sendPush } from './push.mjs';
 
 const MAX_BODY = 50 * 1024 * 1024;
 const MAX_UPLOAD = 25 * 1024 * 1024;
@@ -31,7 +42,10 @@ const COOKIE = 'pk_session';
 const MAX_FAILED_LOGINS = 5;
 const LOCKOUT_MS = 5 * 60 * 1000;
 
-const ROUTE = /(?:^|\/)api\/(session|login|logout|meta|data|backups|uploads)(?:\/([^/]+))?\/?$/;
+const ROUTE = /(?:^|\/)api\/(session|login|logout|meta|data|backups|uploads|push|agenda)(?:\/([^/]+))?\/?$/;
+const MAX_LATE_ON_SAVE = 10 * 60 * 1000;
+const MAX_LATE_ON_ALARM = 6 * 3600 * 1000;
+const MAX_SUBSCRIPTIONS = 20;
 export const BACKUP_NAME = /^pokekanban-(\d{4}-\d{2}-\d{2})(?:-(\d{2})h)?\.json$/;
 const UPLOAD_NAME = /^[\w-]+(\.[a-z0-9]+)?$/;
 
@@ -137,7 +151,7 @@ function hourStamp(date = new Date()) {
   return date.toISOString().slice(0, 13).replace('T', '-');
 }
 
-export function createHandler({ storage, password = '', requirePassword = false }) {
+export function createHandler({ storage, password = '', requirePassword = false, scheduler = null, fetchImpl = (...a) => fetch(...a) }) {
   const authEnabled = password !== '';
   let doc = null; // { rev, savedAt, text }
   let queue = Promise.resolve();
@@ -239,10 +253,165 @@ export function createHandler({ storage, password = '', requirePassword = false 
         await storage.writeDoc(text);
         doc = { rev: next.rev, savedAt: next.savedAt, text };
         await prune();
+        // Reminders may have changed: send what is due now and plan the next one.
+        await pushWork(MAX_LATE_ON_SAVE).catch(() => {});
         return json(200, { rev: next.rev, savedAt: next.savedAt });
       })
       .catch((err) => json(500, { error: String(err?.message ?? err) })));
     return result;
+  }
+
+  /* ------------------------------------------------------------ reminders */
+
+  let push = null; // { vapid, subject, subscriptions: [], lastCheck }
+  let pushQueue = Promise.resolve();
+
+  async function loadPush() {
+    if (push) return push;
+    const text = storage.getItem ? await storage.getItem('push') : null;
+    push = { vapid: null, subject: null, subscriptions: [], lastCheck: null, ...(text ? JSON.parse(text) : {}) };
+    return push;
+  }
+
+  async function savePush() {
+    if (storage.setItem) await storage.setItem('push', JSON.stringify(push));
+  }
+
+  /** Runs push state changes one at a time. */
+  function withPush(fn) {
+    const result = pushQueue.then(fn);
+    pushQueue = result.catch(() => {});
+    return result;
+  }
+
+  async function currentData() {
+    const { text } = await load();
+    return JSON.parse(text).data ?? null;
+  }
+
+  async function sendToAll(state, messages) {
+    const gone = new Set();
+    let sent = 0;
+    for (const message of messages) {
+      for (const sub of state.subscriptions) {
+        if (gone.has(sub.endpoint)) continue;
+        const result = await sendPush(sub, message, state.vapid, state.subject, fetchImpl);
+        if (result.gone) gone.add(sub.endpoint);
+        if (result.ok) sent++;
+      }
+    }
+    if (gone.size) state.subscriptions = state.subscriptions.filter((s) => !gone.has(s.endpoint));
+    return sent;
+  }
+
+  /** Sends reminders due since the last check (at most `maxLate` old) and schedules the next one. */
+  function pushWork(maxLate) {
+    return withPush(async () => {
+      const state = await loadPush();
+      const now = Date.now();
+      if (state.subscriptions.length === 0 || !state.vapid) {
+        scheduler?.set(null);
+        return 0;
+      }
+      const data = await currentData();
+      const from = Math.max(state.lastCheck ?? now, now - maxLate);
+      state.lastCheck = now;
+      let sent = 0;
+      if (data && from < now) {
+        const due = collectReminders(data, from, now).slice(0, 20);
+        sent = await sendToAll(state, due.map((r) => ({ title: r.title, body: r.body, tag: r.id, url: r.url })));
+      }
+      await savePush();
+      if (scheduler) {
+        const next = data && state.subscriptions.length ? collectReminders(data, now, now + 35 * 86400e3)[0] : null;
+        // Wake up a bit after the reminder so it is inside the (lastCheck, now] window.
+        scheduler.set(next ? next.at + 500 : state.subscriptions.length ? now + 30 * 86400e3 : null);
+      }
+      return sent;
+    });
+  }
+
+  async function handlePush(request, url, action) {
+    if (request.method === 'GET' && !action) {
+      const state = await withPush(async () => {
+        const s = await loadPush();
+        if (!s.vapid) {
+          s.vapid = await generateVapidKeys();
+          await savePush();
+        }
+        return s;
+      });
+      return json(200, { publicKey: state.vapid.publicKey, devices: state.subscriptions.map((s) => s.device) });
+    }
+    if (request.method !== 'POST') return json(405, { error: 'Método no permitido' });
+    let body;
+    try {
+      body = JSON.parse(decoder.decode(await readLimited(request, 16 * 1024)));
+    } catch {
+      return json(400, { error: 'Petición inválida' });
+    }
+    if (action === 'subscribe') {
+      const sub = body?.subscription;
+      const valid =
+        sub && typeof sub.endpoint === 'string' && /^https:\/\//.test(sub.endpoint) &&
+        typeof sub.keys?.p256dh === 'string' && typeof sub.keys?.auth === 'string';
+      if (!valid) return json(400, { error: 'Suscripción inválida' });
+      await withPush(async () => {
+        const state = await loadPush();
+        state.vapid ??= await generateVapidKeys();
+        state.subject = url.protocol === 'https:' ? url.origin : 'mailto:pokekanban@localhost';
+        state.lastCheck ??= Date.now();
+        state.subscriptions = state.subscriptions.filter((s) => s.endpoint !== sub.endpoint);
+        state.subscriptions.push({
+          endpoint: sub.endpoint,
+          keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth },
+          device: String(body.device ?? '').slice(0, 80) || 'Dispositivo',
+          createdAt: Date.now(),
+        });
+        state.subscriptions = state.subscriptions.slice(-MAX_SUBSCRIPTIONS);
+        await savePush();
+      });
+      await pushWork(0);
+      return json(200, { ok: true });
+    }
+    if (action === 'unsubscribe') {
+      await withPush(async () => {
+        const state = await loadPush();
+        state.subscriptions = state.subscriptions.filter((s) => s.endpoint !== body?.endpoint);
+        await savePush();
+      });
+      await pushWork(0);
+      return json(200, { ok: true });
+    }
+    if (action === 'test') {
+      const state = await loadPush();
+      const sub = state.subscriptions.find((s) => s.endpoint === body?.endpoint);
+      if (!sub || !state.vapid) return json(404, { error: 'Este dispositivo no está suscrito' });
+      const result = await sendPush(
+        sub,
+        { title: '🔔 Notificaciones activadas', body: 'Así te avisaré de tus eventos, cumpleaños y fechas límite.', tag: 'test', url: '#/calendar' },
+        state.vapid,
+        state.subject,
+        fetchImpl,
+      );
+      if (result.gone) {
+        await withPush(async () => {
+          state.subscriptions = state.subscriptions.filter((s) => s.endpoint !== sub.endpoint);
+          await savePush();
+        });
+      }
+      return json(result.ok ? 200 : 502, { ok: result.ok, status: result.status });
+    }
+    return json(404, { error: 'No encontrado' });
+  }
+
+  async function handleAgenda(url) {
+    const data = (await currentData()) ?? {};
+    const timeZone = data.settings?.timeZone || 'UTC';
+    const today = dayKeyAt(Date.now(), timeZone);
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('from') ?? '') ? url.searchParams.get('from') : today;
+    const days = Math.max(1, Math.min(90, Number(url.searchParams.get('days')) || 14));
+    return json(200, { today, timeZone, generatedAt: Date.now(), items: agenda(data, from, days, { timeZone }) });
   }
 
   async function handleUpload(request, url) {
@@ -322,11 +491,17 @@ export function createHandler({ storage, password = '', requirePassword = false 
     }
   }
 
+  /** Scheduler callback: sends the reminders that are due. */
+  handle.runAlarm = () => pushWork(MAX_LATE_ON_ALARM);
+  /** Plans the next reminder (call once at startup). */
+  handle.reschedule = () => pushWork(0);
+  return handle;
+
   /**
    * Handles an API request. `ctx.ip` identifies the client for login throttling and
    * `ctx.secure` marks HTTPS (session cookies get the Secure flag). Returns null for non-API paths.
    */
-  return async function handle(request, ctx = {}) {
+  async function handle(request, ctx = {}) {
     const url = new URL(request.url);
     const match = ROUTE.exec(url.pathname);
     if (!match) return null;
@@ -366,7 +541,7 @@ export function createHandler({ storage, password = '', requirePassword = false 
     } catch (err) {
       return json(err.status ?? 500, { error: String(err?.message ?? err) });
     }
-  };
+  }
 
   async function route(request, url, resource, param, isRead) {
     if (resource === 'meta' && !param && isRead) {
@@ -383,6 +558,8 @@ export function createHandler({ storage, password = '', requirePassword = false 
       if (param && isRead) return serveUpload(request, param);
       return json(405, { error: 'Método no permitido' });
     }
+    if (resource === 'push') return handlePush(request, url, param);
+    if (resource === 'agenda' && !param && isRead) return handleAgenda(url);
     if (resource === 'backups' && isRead) {
       if (!param) {
         const list = (await storage.listBackups()).filter((b) => BACKUP_NAME.test(b.name));

@@ -8,8 +8,24 @@ import { fsStorage } from './fs-storage.mjs';
 
 const SKIP_HEADERS = new Set(['connection', 'keep-alive', 'transfer-encoding', 'upgrade', 'http2-settings']);
 
+// setTimeout can't wait longer than ~24.8 days; the handler simply reschedules when woken early.
+const MAX_DELAY = 2 ** 31 - 1;
+
 export function createApi({ dataDir, password = '' }) {
-  const handler = createHandler({ storage: fsStorage(dataDir), password });
+  let timer = null;
+  const scheduler = {
+    set(at) {
+      clearTimeout(timer);
+      timer = null;
+      if (at === null || at === undefined) return;
+      timer = setTimeout(() => {
+        handler.runAlarm().catch((err) => console.error('Error al enviar avisos:', err));
+      }, Math.min(Math.max(0, at - Date.now()), MAX_DELAY));
+      timer.unref?.();
+    },
+  };
+  const handler = createHandler({ storage: fsStorage(dataDir), password, scheduler });
+  handler.reschedule().catch(() => {});
 
   /** Returns true when the request was handled. */
   return async function handle(req, res) {

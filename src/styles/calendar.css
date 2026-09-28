@@ -677,6 +677,28 @@
   margin-top: 8px;
 }
 
+.notif-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+}
+
+.notif-settings__on {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--success);
+}
+
+.notif-settings__actions {
+  display: flex;
+  gap: 6px;
+}
+
 /* --------------------------------------------------------- floating button */
 
 .cal-fab {

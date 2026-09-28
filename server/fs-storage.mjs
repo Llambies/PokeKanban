@@ -2,6 +2,7 @@
 //   data/pokekanban.json          current document ({ rev, savedAt, data })
 //   data/backups/pokekanban-*.json snapshots
 //   data/uploads/<file>            attachments
+//   data/<key>.json                small documents (push.json: notification subscriptions)
 
 import fs from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
@@ -71,6 +72,23 @@ export function fsStorage(dataDir) {
     async putFile(name, bytes) {
       await fs.mkdir(uploadsDir, { recursive: true });
       await fs.writeFile(path.join(uploadsDir, path.basename(name)), bytes);
+    },
+
+    async getItem(key) {
+      try {
+        return await fs.readFile(path.join(dataDir, `${path.basename(key)}.json`), 'utf8');
+      } catch (err) {
+        if (missing(err)) return null;
+        throw err;
+      }
+    },
+
+    async setItem(key, text) {
+      await fs.mkdir(dataDir, { recursive: true });
+      const target = path.join(dataDir, `${path.basename(key)}.json`);
+      const tmp = `${target}.${process.pid}.tmp`;
+      await fs.writeFile(tmp, text);
+      await fs.rename(tmp, target);
     },
 
     async getFile(name) {

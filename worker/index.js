@@ -16,7 +16,18 @@ export class PokeKanbanStore extends DurableObject {
       password: env.POKEKANBAN_PASSWORD ?? '',
       // A public URL without a password would expose the boards: refuse until one is set.
       requirePassword: true,
+      // Reminders: the Durable Object alarm wakes it up when the next one is due.
+      scheduler: {
+        set: (at) => {
+          const pending = at === null || at === undefined ? ctx.storage.deleteAlarm() : ctx.storage.setAlarm(at);
+          ctx.waitUntil(pending);
+        },
+      },
     });
+  }
+
+  async alarm() {
+    await this.handle.runAlarm();
   }
 
   async fetch(request) {

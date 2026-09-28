@@ -6,6 +6,7 @@
 //   doc:meta { chunks, size }            doc:<i>        current document
 //   bak:index [{ name, size, mtime }]     bak:<name>:meta / bak:<name>:<i>
 //   file:<name>:meta { chunks, size, type }   file:<name>:<i>
+//   kv:<key>                              small documents (push subscriptions)
 
 const CHUNK = 120_000; // bytes
 const BATCH = 128; // max keys per get/put/delete call
@@ -108,6 +109,14 @@ export function durableStorage(storage) {
 
     async putFile(name, bytes, type) {
       await writeBlob(`file:${name}`, bytes, { type }, 0);
+    },
+
+    async getItem(key) {
+      return (await storage.get(`kv:${key}`)) ?? null;
+    },
+
+    async setItem(key, text) {
+      await storage.put(`kv:${key}`, text);
     },
 
     async getFile(name) {

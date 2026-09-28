@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Bell, Copy, MapPin, Palette, Plus, Repeat, StickyNote, Tag, Trash2, X } from 'lucide-react';
 import type { CalendarEvent, EventKind, Recurrence } from '../../types';
 import * as C from '../../store/calendar';
@@ -19,6 +19,7 @@ import { LabelEditor } from '../common/LabelEditor';
 import { SwatchGrid } from '../common/SwatchGrid';
 import { IconPicker } from '../common/IconPicker';
 import { AutoTextarea } from '../common/AutoTextarea';
+import { enablePush, refreshPush, usePush } from '../../lib/push';
 import { askScope, deleteOccurrenceWithScope } from './actions';
 import { undoToast } from '../contextmenu/menus';
 
@@ -334,12 +335,28 @@ function RemindersEditor({ draft, onChange }: { draft: Draft; onChange: (reminde
   );
 }
 
+function PushHint() {
+  const status = usePush((s) => s.status);
+  if (status !== 'off') return null;
+  return (
+    <p className="small muted ev-push-hint">
+      Las notificaciones no están activadas en este dispositivo.{' '}
+      <button type="button" className="link-btn" onClick={() => void enablePush()}>
+        Activarlas
+      </button>
+    </p>
+  );
+}
+
 /* ----------------------------------------------------------------- editor */
 
 type Pop = 'icon' | 'color' | 'label' | null;
 
 export function EventEditor({ event, occ, isNew, onClose }: { event: CalendarEvent; occ: string | null; isNew: boolean; onClose: () => void }) {
   const [draft, setDraft] = useState<Draft>(() => toDraft(event, occ));
+  useEffect(() => {
+    void refreshPush();
+  }, []);
   const labels = useStore((s) => s.data.eventLabels);
   const [pop, setPop] = useState<{ key: Pop; anchor: HTMLElement | null }>({ key: null, anchor: null });
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
@@ -538,6 +555,7 @@ export function EventEditor({ event, occ, isNew, onClose }: { event: CalendarEve
               <Bell size={15} /> Avisos
             </h3>
             <RemindersEditor draft={draft} onChange={(reminders) => set({ reminders })} />
+            {draft.reminders.length > 0 && <PushHint />}
           </section>
 
           <section className="ev-section">
