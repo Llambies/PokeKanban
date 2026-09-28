@@ -6,6 +6,8 @@
   "name": "pokekanban",
   "main": "worker/index.js",
   "compatibility_date": "2025-09-01",
+  // Custom domain (the llambies.com zone lives in the same Cloudflare account).
+  "routes": [{ "pattern": "kanban.llambies.com", "custom_domain": true }],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

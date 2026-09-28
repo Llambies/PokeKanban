@@ -100,6 +100,8 @@ Lo que hagas en el móvil aparece en el ordenador y al revés.
 3. Cuando termine: **pokekanban → Ajustes → Variables y secretos → Añadir**, de tipo *secreto*,
    nombre `POKEKANBAN_PASSWORD` y tu contraseña. Sin ella la app no guarda nada (y te lo indica).
 4. Abre la dirección `*.workers.dev` que te da Cloudflare y entra con esa contraseña.
+5. Dominio propio: el Worker responde en `kanban.llambies.com` (declarado en `routes` de `wrangler.jsonc`;
+   requiere que el dominio esté en la misma cuenta de Cloudflare). Para usar otro, cambia ese valor o quítalo.
 
 Cada push a la rama vuelve a desplegar. Cambiar la contraseña cierra la sesión en todos los dispositivos.
 Desde la terminal: `npx wrangler secret put POKEKANBAN_PASSWORD` y `npm run deploy:cloudflare`.
