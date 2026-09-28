@@ -11,7 +11,7 @@ import { addDaysKey, combine, dateKeyOf, nextWeekdayKey, timeOf, todayKey } from
 import { LabelChip } from '../common/LabelChip';
 import { LabelEditor } from '../common/LabelEditor';
 import { SwatchGrid } from '../common/SwatchGrid';
-import { navigate, openCard } from '../../lib/router';
+import { getRoute, navigate, openCard } from '../../lib/router';
 
 /* ------------------------------------------------------------- labels */
 
@@ -267,7 +267,7 @@ export function MoveCopyPicker({ card, mode, onDone }: { card: Card; mode: 'move
     if (!effectiveListId) return;
     if (mode === 'move') {
       S.moveCard(card.id, effectiveListId, pos - 1);
-      if (boardId !== card.boardId) {
+      if (boardId !== card.boardId && getRoute().page === 'board') {
         // Follow the card to its new board (replacing the card entry keeps "back" sensible).
         navigate({ boardId }, true);
         toast(`Tarjeta movida a "${data.boards[boardId].title}"`);

@@ -1,5 +1,7 @@
 import { create } from 'zustand';
+import type { CalendarEvent, CalendarView } from '../types';
 import { EMPTY_FILTER, type CardFilter } from '../lib/filter';
+import { EMPTY_CAL_FILTER, type CalendarFilter } from '../lib/calendar';
 
 /* ------------------------------------------------------------ preferences */
 
@@ -8,12 +10,19 @@ export type ThemePref = 'system' | 'light' | 'dark';
 interface Prefs {
   theme: ThemePref;
   compactLabels: boolean;
+  calView: CalendarView;
+  calFilter: CalendarFilter;
 }
 
 const PREFS_KEY = 'pokekanban:prefs';
 
 function readPrefs(): Prefs {
-  const defaults: Prefs = { theme: 'system', compactLabels: false };
+  const defaults: Prefs = {
+    theme: 'system',
+    compactLabels: false,
+    calView: typeof window !== 'undefined' && window.innerWidth < 600 ? 'agenda' : 'month',
+    calFilter: EMPTY_CAL_FILTER,
+  };
   try {
     return { ...defaults, ...JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') };
   } catch {
@@ -51,6 +60,21 @@ export interface ConfirmRequest {
   resolve: (ok: boolean) => void;
 }
 
+export interface ChoiceOption<T extends string = string> {
+  value: T;
+  label: string;
+  description?: string;
+  danger?: boolean;
+  disabled?: boolean;
+}
+
+export interface ChoiceRequest {
+  title: string;
+  message?: string;
+  options: ChoiceOption[];
+  resolve: (value: string | null) => void;
+}
+
 export interface PromptRequest {
   title: string;
   label?: string;
@@ -74,6 +98,9 @@ interface UIState {
   toasts: Toast[];
   confirm: ConfirmRequest | null;
   prompt: PromptRequest | null;
+  choice: ChoiceRequest | null;
+  /** New event being created (existing ones open through the route). */
+  eventDraft: CalendarEvent | null;
 }
 
 export const useUI = create<UIState>(() => ({
@@ -87,6 +114,8 @@ export const useUI = create<UIState>(() => ({
   toasts: [],
   confirm: null,
   prompt: null,
+  choice: null,
+  eventDraft: null,
 }));
 
 export function setFilter(patch: Partial<CardFilter>): void {
@@ -122,5 +151,11 @@ export function confirmDialog(req: Omit<ConfirmRequest, 'resolve'>): Promise<boo
 export function promptDialog(req: Omit<PromptRequest, 'resolve'>): Promise<string | null> {
   return new Promise((resolve) => {
     useUI.setState({ prompt: { ...req, resolve } });
+  });
+}
+
+export function choiceDialog<T extends string>(req: { title: string; message?: string; options: ChoiceOption<T>[] }): Promise<T | null> {
+  return new Promise((resolve) => {
+    useUI.setState({ choice: { ...req, resolve: resolve as (value: string | null) => void } });
   });
 }

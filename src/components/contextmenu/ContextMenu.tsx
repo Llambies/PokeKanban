@@ -97,6 +97,8 @@ function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter, title }: 
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (openSub?.viaKeyboard && e.target !== ref.current) return;
+    // Text fields inside custom items (icon search…) keep their keys.
+    if ((e.target as HTMLElement).closest('input, textarea, select') && e.key !== 'Escape') return;
     const pos = focusable.indexOf(active);
     switch (e.key) {
       case 'ArrowDown':

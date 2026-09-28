@@ -12,6 +12,8 @@ import { useGlobalShortcuts } from './components/layout/useGlobalShortcuts';
 import { HomePage } from './components/home/HomePage';
 import { BoardPage } from './components/board/BoardPage';
 import { CardModal } from './components/card/CardModal';
+import { CalendarPage } from './components/calendar/CalendarPage';
+import { EventEditorHost } from './components/calendar/EventEditor';
 import { ContextMenuHost } from './components/contextmenu/ContextMenu';
 import { DialogHost } from './components/common/Dialogs';
 
@@ -35,7 +37,7 @@ export function App() {
   const fatalCode = usePersist((s) => s.fatalCode);
   const needsLogin = usePersist((s) => s.needsLogin);
   const route = useRoute();
-  const board = useStore((s) => (route.boardId ? s.data.boards[route.boardId] : undefined));
+  const board = useStore((s) => (route.page === 'board' && route.boardId ? s.data.boards[route.boardId] : undefined));
   useTheme();
   useGlobalShortcuts();
 
@@ -46,8 +48,8 @@ export function App() {
   }, [route.boardId]);
 
   useEffect(() => {
-    document.title = board ? `${board.title} · PokeKanban` : 'PokeKanban';
-  }, [board]);
+    document.title = board ? `${board.title} · PokeKanban` : route.page === 'calendar' ? 'Calendario · PokeKanban' : 'PokeKanban';
+  }, [board, route.page]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('is-kanban', !!board && route.view === 'kanban');
@@ -103,12 +105,17 @@ export function App() {
   const bg = board ? getBoardBackground(board.background) : null;
 
   return (
-    <div className={`app ${board ? 'app--board' : 'app--home'}`} style={bg ? ({ '--board-base': bg.base } as React.CSSProperties) : undefined}>
+    <div
+      className={`app ${board ? 'app--board' : route.page === 'calendar' ? 'app--calendar' : 'app--home'}`}
+      style={bg ? ({ '--board-base': bg.base } as React.CSSProperties) : undefined}
+    >
       {bg && <div className="app__bg" style={{ background: bg.css }} />}
       <Header />
       <ConflictBanner />
       <main className="app__main">
-        {route.boardId ? (
+        {route.page === 'calendar' ? (
+          <CalendarPage />
+        ) : route.page === 'board' ? (
           board ? (
             <BoardPage boardId={board.id} view={route.view} />
           ) : (
@@ -125,6 +132,7 @@ export function App() {
         )}
       </main>
       {route.cardId && <CardModal key={route.cardId} cardId={route.cardId} />}
+      <EventEditorHost eventId={route.page === 'calendar' ? route.eventId : null} occ={route.occ} />
       <ContextMenuHost />
       <DialogHost />
       <ShortcutsHelp />

@@ -1,4 +1,5 @@
 import type { ColorKey } from '../types';
+import { DARK_TEXT, HUES, LIGHT_TEXT } from '../../shared/palette.js';
 
 export interface PaletteColor {
   key: ColorKey;
@@ -7,22 +8,6 @@ export interface PaletteColor {
   /** Text color with good contrast on bg. */
   fg: string;
 }
-
-const HUES: { hue: string; name: string; subtle: string; normal: string; bold: string }[] = [
-  { hue: 'green', name: 'Verde', subtle: '#BAF3DB', normal: '#4BCE97', bold: '#1F845A' },
-  { hue: 'yellow', name: 'Amarillo', subtle: '#F8E6A0', normal: '#F5CD47', bold: '#946F00' },
-  { hue: 'orange', name: 'Naranja', subtle: '#FEDEC8', normal: '#FEA362', bold: '#C25100' },
-  { hue: 'red', name: 'Rojo', subtle: '#FFD5D2', normal: '#F87168', bold: '#C9372C' },
-  { hue: 'purple', name: 'Morado', subtle: '#DFD8FD', normal: '#9F8FEF', bold: '#6E5DC6' },
-  { hue: 'blue', name: 'Azul', subtle: '#CCE0FF', normal: '#579DFF', bold: '#0C66E4' },
-  { hue: 'sky', name: 'Celeste', subtle: '#C6EDFB', normal: '#6CC3E0', bold: '#227D9B' },
-  { hue: 'lime', name: 'Lima', subtle: '#D3F1A7', normal: '#94C748', bold: '#5B7F24' },
-  { hue: 'pink', name: 'Rosa', subtle: '#FDD0EC', normal: '#E774BB', bold: '#AE4787' },
-  { hue: 'black', name: 'Gris', subtle: '#DCDFE4', normal: '#8590A2', bold: '#44546F' },
-];
-
-const DARK_TEXT = '#172B4D';
-const LIGHT_TEXT = '#FFFFFF';
 
 export const PALETTE: PaletteColor[] = [];
 /** Palette laid out as rows (subtle / normal / bold), handy for swatch grids. */

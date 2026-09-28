@@ -132,12 +132,79 @@ export interface Board {
   updatedAt: number;
 }
 
+/* ---------------------------------------------------------------- calendar */
+
+/**
+ * event: appointment (optional end) · birthday / anniversary: yearly, shows the age ·
+ * deadline / reminder: can be marked as done (per occurrence).
+ */
+export type EventKind = 'event' | 'birthday' | 'anniversary' | 'deadline' | 'reminder';
+
+export type RecurrenceFreq = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+export interface Recurrence {
+  freq: RecurrenceFreq;
+  /** Every N days / weeks / months / years. */
+  interval: number;
+  /** Weekly: ISO weekdays (1 = Monday … 7 = Sunday). Empty = the start's weekday. */
+  byWeekday: number[];
+  /** Monthly: same day number, same nth weekday ("2nd Tuesday") or last weekday ("last Friday"). */
+  monthlyBy: 'day' | 'weekday' | 'last-weekday';
+  /** Last possible occurrence day ("YYYY-MM-DD", inclusive). */
+  until: string | null;
+  /** Maximum number of occurrences. */
+  count: number | null;
+}
+
+export interface CalendarEvent {
+  id: ID;
+  kind: EventKind;
+  title: string;
+  notes: string;
+  location: string;
+  color: ColorKey | null;
+  /** "lucide:<IconName>" or a raw emoji. */
+  icon: string | null;
+  labelIds: ID[];
+  /** "YYYY-MM-DD" (all day) or "YYYY-MM-DDTHH:mm" (local time). First occurrence. */
+  start: string;
+  /** Same format as start. All-day ends are inclusive. */
+  end: string | null;
+  recurrence: Recurrence | null;
+  /** Occurrences removed from the series (their "YYYY-MM-DD"). */
+  exdates: string[];
+  /** Minutes before the start to notify (all-day events count from settings.allDayTime). */
+  reminders: number[];
+  /** Completed occurrences ("YYYY-MM-DD"), for deadlines and reminders. */
+  done: string[];
+  /** Birthdays / anniversaries: year it all started, to show the age. */
+  sinceYear: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AppSettings {
+  /** IANA zone used by the server to send reminders at the right local time. */
+  timeZone: string;
+  /** Time ("HH:mm") at which reminders of all-day events and cards are sent. */
+  allDayTime: string;
+  /** Reminders for cards with a due date (minutes before), empty = none. */
+  cardReminders: number[];
+  /** Show board cards with due dates in the calendar. */
+  showCards: boolean;
+}
+
 export interface AppData {
   version: 1;
   boardOrder: ID[];
   boards: Record<ID, Board>;
   lists: Record<ID, List>;
   cards: Record<ID, Card>;
+  events: Record<ID, CalendarEvent>;
+  eventLabels: Label[];
+  settings: AppSettings;
 }
 
 export type BoardView = 'kanban' | 'table' | 'calendar';
+
+export type CalendarView = 'month' | 'week' | 'agenda';

@@ -2,15 +2,21 @@ import { useMemo, useRef, useState } from 'react';
 import { LayoutDashboard, Search, X } from 'lucide-react';
 import { useStore } from '../../store/store';
 import { normalize } from '../../lib/icons';
-import { navigate, openCard } from '../../lib/router';
-import { getBoardBackground } from '../../lib/colors';
+import { navigate, openCard, openEvent } from '../../lib/router';
+import { getBoardBackground, getColor } from '../../lib/colors';
+import { todayKey } from '../../lib/dates';
+import { eventColorKey, eventIcon, KIND_INFO, shortDate } from '../../lib/calendar';
+import { dayToKey, keyToDay, occurrences } from '../../../shared/calendar.js';
+import { IconGlyph } from '../common/LabelChip';
 
 interface Result {
-  kind: 'board' | 'card';
+  kind: 'board' | 'card' | 'event';
   id: string;
   boardId: string;
   title: string;
   subtitle: string;
+  /** Events: occurrence to open. */
+  occ?: string;
 }
 
 export const SEARCH_INPUT_ID = 'global-search';
@@ -49,6 +55,22 @@ export function SearchBox() {
       });
       if (out.length >= 30) break;
     }
+    // Events: open the next occurrence (or the last one if the series is over).
+    const today = todayKey();
+    for (const event of Object.values(data.events)) {
+      if (out.length >= 40) break;
+      if (!match(`${event.title} ${event.notes} ${event.location}`)) continue;
+      const next = occurrences(event, today, dayToKey(keyToDay(today) + 800))[0];
+      const occ = next ?? event.start.slice(0, 10);
+      out.push({
+        kind: 'event',
+        id: event.id,
+        boardId: '',
+        title: event.title,
+        subtitle: `${KIND_INFO[event.kind].label} · ${shortDate(occ)}`,
+        occ,
+      });
+    }
     return out;
   }, [query, data]);
 
@@ -56,6 +78,7 @@ export function SearchBox() {
     setQuery('');
     inputRef.current?.blur();
     if (r.kind === 'board') navigate({ boardId: r.id });
+    else if (r.kind === 'event') openEvent(r.id, r.occ ?? null);
     else openCard(r.id, r.boardId);
   };
 
@@ -66,7 +89,7 @@ export function SearchBox() {
         id={SEARCH_INPUT_ID}
         ref={inputRef}
         className="search__input"
-        placeholder="Buscar tarjetas y tableros"
+        placeholder="Buscar tarjetas, tableros y eventos"
         value={query}
         autoComplete="off"
         onChange={(e) => {
@@ -117,6 +140,16 @@ export function SearchBox() {
               {r.kind === 'board' ? (
                 <span className="search__thumb" style={{ background: getBoardBackground(data.boards[r.id].background).css }}>
                   <LayoutDashboard size={12} color="#fff" />
+                </span>
+              ) : r.kind === 'event' ? (
+                <span
+                  className="search__thumb"
+                  style={{
+                    background: getColor(eventColorKey(data.events[r.id], data.eventLabels))?.bg,
+                    color: getColor(eventColorKey(data.events[r.id], data.eventLabels))?.fg,
+                  }}
+                >
+                  <IconGlyph icon={eventIcon(data.events[r.id])} size={12} />
                 </span>
               ) : (
                 <span className="search__thumb search__thumb--card" />

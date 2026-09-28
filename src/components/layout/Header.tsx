@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import {
-  ChevronDown, Cloud, CloudOff, CloudUpload, Download, HardDrive, Keyboard, Monitor, Moon, Plus, Redo2, Settings,
+  CalendarDays, ChevronDown, Cloud, LayoutDashboard, CloudOff, CloudUpload, Download, HardDrive, Keyboard, Monitor, Moon, Plus, Redo2, Settings,
   LogOut, Star, Sun, TriangleAlert, Undo2, Upload, Tags,
 } from 'lucide-react';
 import { redo, undo, useStore } from '../../store/store';
@@ -66,7 +66,8 @@ function BoardsSwitcher() {
   return (
     <>
       <button type="button" className="header-btn" onClick={(e) => setAnchor(anchor ? null : e.currentTarget)} aria-expanded={!!anchor}>
-        Tableros <ChevronDown size={15} />
+        <LayoutDashboard size={16} className="show-sm" />
+        <span className="header-btn__label">Tableros</span> <ChevronDown size={15} />
       </button>
       {anchor && (
         <Popover anchor={anchor} onClose={close} title={creating ? 'Crear tablero' : 'Tus tableros'} onBack={creating ? () => setCreating(false) : undefined}>
@@ -105,6 +106,22 @@ function BoardsSwitcher() {
         </Popover>
       )}
     </>
+  );
+}
+
+function CalendarButton() {
+  const route = useRoute();
+  const active = route.page === 'calendar';
+  return (
+    <button
+      type="button"
+      className={`header-btn ${active ? 'is-active' : ''}`}
+      onClick={() => navigate({ page: 'calendar' })}
+      aria-current={active ? 'page' : undefined}
+      title="Calendario"
+    >
+      <CalendarDays size={16} /> <span className="header-btn__label">Calendario</span>
+    </button>
   );
 }
 
@@ -154,6 +171,7 @@ export function Header() {
         <span>PokeKanban</span>
       </button>
       <BoardsSwitcher />
+      <CalendarButton />
       <div className="topbar__spacer" />
       <SearchBox />
       <div className="topbar__actions">

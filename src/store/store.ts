@@ -29,7 +29,7 @@ export const useStore = create<StoreState>(() => ({
 type D = Draft<AppData>;
 
 /** Applies a change to the data, recording it in the undo history. */
-function mutate(recipe: (d: D) => void): void {
+export function mutate(recipe: (d: D) => void): void {
   const state = useStore.getState();
   const next = produce(state.data, recipe);
   if (next === state.data) return;

@@ -1,9 +1,70 @@
-import type { AppData, Board, Card, ChecklistItem, Label, List } from '../types';
+import type { AppData, AppSettings, Board, CalendarEvent, Card, ChecklistItem, EventKind, Label, List } from '../types';
 import { uid } from '../lib/id';
 import { addDaysKey } from '../lib/dates';
 
+export function deviceTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
+export function defaultSettings(): AppSettings {
+  return { timeZone: deviceTimeZone(), allDayTime: '09:00', cardReminders: [], showCards: true };
+}
+
 export function emptyData(): AppData {
-  return { version: 1, boardOrder: [], boards: {}, lists: {}, cards: {} };
+  return {
+    version: 1, boardOrder: [], boards: {}, lists: {}, cards: {}, events: {}, eventLabels: defaultEventLabels(),
+    settings: defaultSettings(),
+  };
+}
+
+export function defaultEventLabels(): Label[] {
+  return [
+    { id: uid(), name: 'Personal', color: 'purple', icon: 'lucide:Heart' },
+    { id: uid(), name: 'Trabajo', color: 'blue', icon: 'lucide:Briefcase' },
+    { id: uid(), name: 'Familia', color: 'green', icon: 'lucide:House' },
+    { id: uid(), name: 'Salud', color: 'red', icon: 'lucide:Stethoscope' },
+    { id: uid(), name: 'Pagos', color: 'yellow', icon: 'lucide:Wallet' },
+  ];
+}
+
+/** Defaults per kind: reminders (minutes before) and whether it repeats yearly. */
+export const KIND_DEFAULTS: Record<EventKind, { reminders: number[]; yearly: boolean; allDay: boolean }> = {
+  event: { reminders: [30], yearly: false, allDay: false },
+  birthday: { reminders: [0], yearly: true, allDay: true },
+  anniversary: { reminders: [0], yearly: true, allDay: true },
+  deadline: { reminders: [1440, 0], yearly: false, allDay: true },
+  reminder: { reminders: [0], yearly: false, allDay: false },
+};
+
+export function makeEvent(kind: EventKind, start: string, extra: Partial<CalendarEvent> = {}): CalendarEvent {
+  const now = Date.now();
+  const defaults = KIND_DEFAULTS[kind];
+  return {
+    id: uid(),
+    kind,
+    title: '',
+    notes: '',
+    location: '',
+    color: null,
+    icon: null,
+    labelIds: [],
+    start,
+    end: null,
+    recurrence: defaults.yearly
+      ? { freq: 'yearly', interval: 1, byWeekday: [], monthlyBy: 'day', until: null, count: null }
+      : null,
+    exdates: [],
+    reminders: [...defaults.reminders],
+    done: [],
+    sinceYear: null,
+    createdAt: now,
+    updatedAt: now,
+    ...extra,
+  };
 }
 
 export function makeBoard(title: string, background = 'ocean'): Board {
@@ -165,5 +226,18 @@ export function sampleData(): AppData {
   }
   data.boards[board.id] = board;
   data.boardOrder.push(board.id);
+
+  const [personal2, work, , health, bills] = data.eventLabels;
+  const weekday = ((new Date().getDay() + 6) % 7) + 1;
+  const events = [
+    makeEvent('event', `${addDaysKey(1)}T18:30`, {
+      title: 'Gimnasio', end: `${addDaysKey(1)}T19:30`, icon: 'lucide:Dumbbell', labelIds: [health.id],
+      recurrence: { freq: 'weekly', interval: 1, byWeekday: [((weekday) % 7) + 1, ((weekday + 2) % 7) + 1], monthlyBy: 'day', until: null, count: null },
+    }),
+    makeEvent('birthday', `1990-${addDaysKey(3).slice(5)}`, { title: 'Ana', sinceYear: 1990, labelIds: [personal2.id] }),
+    makeEvent('deadline', addDaysKey(2), { title: 'Pagar el seguro del coche', labelIds: [bills.id] }),
+    makeEvent('event', `${addDaysKey(4)}T10:00`, { title: 'Reunión de proyecto', end: `${addDaysKey(4)}T11:00`, labelIds: [work.id], location: 'Oficina' }),
+  ];
+  for (const event of events) data.events[event.id] = event;
   return data;
 }

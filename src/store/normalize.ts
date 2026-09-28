@@ -1,8 +1,9 @@
 import type {
-  AppData, Attachment, Board, Card, Checklist, ChecklistItem, Comment, CustomField, CustomFieldType, CustomFieldValue, Label, List, Priority,
+  AppData, AppSettings, Attachment, Board, CalendarEvent, Card, Checklist, ChecklistItem, Comment, CustomField, CustomFieldType,
+  CustomFieldValue, EventKind, Label, List, Priority, Recurrence, RecurrenceFreq,
 } from '../types';
 import { uid } from '../lib/id';
-import { emptyData } from './factories';
+import { defaultSettings, emptyData } from './factories';
 
 type Raw = any;
 
@@ -148,6 +149,66 @@ function normBoard(raw: Raw, now: number): Board {
   };
 }
 
+const EVENT_KINDS: EventKind[] = ['event', 'birthday', 'anniversary', 'deadline', 'reminder'];
+const FREQS: RecurrenceFreq[] = ['daily', 'weekly', 'monthly', 'yearly'];
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const DATE_TIME = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/;
+const dateKey = (v: Raw): string | null => (typeof v === 'string' && DATE.test(v) ? v : null);
+const minutesList = (v: Raw): number[] =>
+  [...new Set(arr(v).filter((m) => typeof m === 'number' && Number.isFinite(m) && m >= 0).map(Math.round))].sort((a, b) => a - b);
+
+function normRecurrence(raw: Raw): Recurrence | null {
+  if (!raw || typeof raw !== 'object' || !FREQS.includes(raw.freq)) return null;
+  const count = num(raw.count, 0);
+  return {
+    freq: raw.freq,
+    interval: Math.max(1, Math.min(999, Math.floor(num(raw.interval, 1)))),
+    byWeekday: [...new Set(arr(raw.byWeekday).filter((d) => Number.isInteger(d) && d >= 1 && d <= 7))].sort(),
+    monthlyBy: raw.monthlyBy === 'weekday' || raw.monthlyBy === 'last-weekday' ? raw.monthlyBy : 'day',
+    until: dateKey(raw.until),
+    count: count >= 1 ? Math.floor(count) : null,
+  };
+}
+
+function normEvent(raw: Raw, now: number): CalendarEvent | null {
+  const start = typeof raw?.start === 'string' && DATE_TIME.test(raw.start) ? raw.start : null;
+  if (!start) return null;
+  let end = typeof raw.end === 'string' && DATE_TIME.test(raw.end) ? raw.end : null;
+  // Ends before the start (or all-day vs timed mismatches) are dropped.
+  if (end && (end.includes('T') !== start.includes('T') || end < start)) end = null;
+  const since = num(raw.sinceYear, 0);
+  return {
+    id: idOf(raw.id),
+    kind: EVENT_KINDS.includes(raw.kind) ? raw.kind : 'event',
+    title: str(raw.title),
+    notes: str(raw.notes),
+    location: str(raw.location),
+    color: strOrNull(raw.color),
+    icon: strOrNull(raw.icon),
+    labelIds: ids(raw.labelIds),
+    start,
+    end,
+    recurrence: normRecurrence(raw.recurrence),
+    exdates: [...new Set(arr(raw.exdates).map(dateKey).filter((d): d is string => !!d))],
+    reminders: minutesList(raw.reminders),
+    done: [...new Set(arr(raw.done).map(dateKey).filter((d): d is string => !!d))],
+    sinceYear: since >= 1 && since <= 9999 ? Math.floor(since) : null,
+    createdAt: num(raw.createdAt, now),
+    updatedAt: num(raw.updatedAt, now),
+  };
+}
+
+function normSettings(raw: Raw): AppSettings {
+  const defaults = defaultSettings();
+  if (!raw || typeof raw !== 'object') return defaults;
+  return {
+    timeZone: typeof raw.timeZone === 'string' && raw.timeZone ? raw.timeZone : defaults.timeZone,
+    allDayTime: typeof raw.allDayTime === 'string' && /^\d{2}:\d{2}$/.test(raw.allDayTime) ? raw.allDayTime : defaults.allDayTime,
+    cardReminders: minutesList(raw.cardReminders),
+    showCards: raw.showCards !== false,
+  };
+}
+
 /**
  * Validates and repairs data coming from storage or an import: fills missing
  * fields and fixes broken references so the UI can trust the structure.
@@ -219,6 +280,18 @@ export function normalizeData(input: Raw): AppData {
   for (const card of Object.values(data.cards)) {
     if (!card.archived && !placed.has(card.id)) data.lists[card.listId].cardIds.push(card.id);
   }
+
+  // Calendar (older files have none: keep the default labels).
+  if (Array.isArray(input.eventLabels)) data.eventLabels = input.eventLabels.map(normLabel);
+  const eventLabelIds = new Set(data.eventLabels.map((l) => l.id));
+  for (const raw of Object.values<Raw>(input.events ?? {})) {
+    if (!raw || !idOf(raw.id)) continue;
+    const event = normEvent(raw, now);
+    if (!event) continue;
+    event.labelIds = event.labelIds.filter((id) => eventLabelIds.has(id));
+    data.events[event.id] = event;
+  }
+  data.settings = normSettings(input.settings);
 
   return data;
 }

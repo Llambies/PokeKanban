@@ -6,6 +6,7 @@ import './styles/base.css';
 import './styles/components.css';
 import './styles/board.css';
 import './styles/card.css';
+import './styles/calendar.css';
 
 void initPersistence();
 
