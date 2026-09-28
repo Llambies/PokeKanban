@@ -47,6 +47,7 @@ Los datos son tuyos: se guardan en un archivo JSON en tu máquina (o en el naveg
 - Plantillas de tarjeta, archivo con restauración, favoritos, duplicar tableros.
 - Atajos de teclado estilo Trello sobre la tarjeta bajo el ratón (Enter, T, 1…9, D, C, Supr). Pulsa `?` para verlos todos.
 - Tema claro / oscuro / automático.
+- Instalable como aplicación (PWA): en Chrome/Edge, «Instalar PokeKanban» desde la barra de direcciones.
 - **Importar desde Trello** (JSON exportado desde *Menú → Imprimir, exportar y compartir → Exportar como JSON*):
   listas, tarjetas, etiquetas, checklists, fechas, portadas, comentarios, enlaces y campos personalizados.
   También exportar/importar copias de seguridad completas y tableros sueltos.
