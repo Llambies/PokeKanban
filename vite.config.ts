@@ -7,7 +7,10 @@ function storageApi(): Plugin {
   return {
     name: 'pokekanban-storage-api',
     configureServer(server) {
-      const api = createApi({ dataDir: process.env.POKEKANBAN_DATA_DIR ?? 'data' });
+      const api = createApi({
+        dataDir: process.env.POKEKANBAN_DATA_DIR ?? 'data',
+        password: process.env.POKEKANBAN_PASSWORD ?? '',
+      });
       server.middlewares.use((req, res, next) => {
         api(req, res)
           .then((handled) => {

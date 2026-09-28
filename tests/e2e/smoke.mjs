@@ -307,6 +307,45 @@ try {
   check((await page.evaluate(() => document.documentElement.dataset.theme)) === 'dark', 'cambia a tema oscuro');
   await shot('dark');
 
+  console.log('Login con contraseña');
+  const authDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pokekanban-e2e-auth-'));
+  const authPort = await freePort();
+  const authServer = spawn(process.execPath, [path.join(root, 'server/index.mjs')], {
+    env: { ...process.env, PORT: String(authPort), HOST: '127.0.0.1', POKEKANBAN_DATA_DIR: authDir, POKEKANBAN_PASSWORD: 'clave-e2e' },
+    stdio: 'pipe',
+  });
+  await new Promise((resolve) => authServer.stdout.once('data', resolve));
+  const authBase = `http://127.0.0.1:${authPort}/`;
+  try {
+    check((await fetch(`${authBase}api/data`)).status === 401, 'sin sesión la API responde 401');
+    const authPage = await browser.newPage({ viewport: { width: 1000, height: 800 } });
+    authPage.on('pageerror', (e) => errors.push(e.message));
+    await authPage.goto(authBase);
+    await authPage.waitForSelector('#login-password');
+    check((await authPage.locator('.board-tile').count()) === 0, 'muestra la pantalla de login');
+    await authPage.fill('#login-password', 'mala');
+    await authPage.keyboard.press('Enter');
+    await authPage.waitForSelector('.login__error');
+    check((await authPage.locator('.login__error').textContent()).includes('incorrecta'), 'contraseña incorrecta rechazada');
+    await authPage.fill('#login-password', 'clave-e2e');
+    await authPage.keyboard.press('Enter');
+    await authPage.waitForSelector('.board-tile');
+    check(true, 'entra con la contraseña correcta');
+    await authPage.waitForSelector('.save-status--saved');
+    await authPage.reload();
+    await authPage.waitForSelector('.board-tile');
+    check((await authPage.locator('#login-password').count()) === 0, 'la sesión se mantiene al recargar');
+    await authPage.locator('button[aria-label="Ajustes"]').click();
+    await authPage.locator('.ctx-item', { hasText: 'Cerrar sesión' }).click();
+    await authPage.waitForSelector('#login-password');
+    check(true, 'cerrar sesión vuelve al login');
+    if (shotsDir) await authPage.screenshot({ path: path.join(shotsDir, 'login.png') });
+    await authPage.close();
+  } finally {
+    authServer.kill();
+    fs.rmSync(authDir, { recursive: true, force: true });
+  }
+
   check(errors.length === 0, `sin errores en consola${errors.length ? `: ${errors.join(' | ')}` : ''}`);
 } catch (err) {
   failures++;

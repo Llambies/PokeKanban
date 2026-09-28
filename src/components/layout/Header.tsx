@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react';
 import {
   ChevronDown, Cloud, CloudOff, CloudUpload, Download, HardDrive, Keyboard, Monitor, Moon, Plus, Redo2, Settings,
-  Star, Sun, TriangleAlert, Undo2, Upload, Tags,
+  LogOut, Star, Sun, TriangleAlert, Undo2, Upload, Tags,
 } from 'lucide-react';
 import { redo, undo, useStore } from '../../store/store';
-import { usePersist } from '../../store/persistence';
+import { logout, usePersist } from '../../store/persistence';
 import { setPrefs, usePrefs, useUI } from '../../store/ui';
 import { navigate, useRoute } from '../../lib/router';
 import { getBoardBackground } from '../../lib/colors';
@@ -138,6 +138,12 @@ export function Header() {
           if (id) navigate({ boardId: id });
         },
       },
+      ...(usePersist.getState().authEnabled
+        ? [
+            { kind: 'separator' as const },
+            { label: 'Cerrar sesión', icon: <LogOut size={15} />, onSelect: () => void logout() },
+          ]
+        : []),
     ];
   };
 

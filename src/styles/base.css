@@ -1174,3 +1174,57 @@ kbd {
   min-width: 0;
   width: 100%;
 }
+
+/* ------------------------------------------------------------------ login */
+
+.login {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 24px 16px;
+  background: linear-gradient(135deg, #0c66e4 0%, #09326c 100%);
+}
+
+.login__card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 360px;
+  padding: 28px 24px 22px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-overlay);
+}
+
+.login__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.login__brand h1 {
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.login__hint {
+  margin: 0 0 4px;
+  color: var(--text-subtle);
+}
+
+.login__card .field-label {
+  margin: 0;
+}
+
+.login__error {
+  margin: 0;
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.login__card .muted {
+  margin: 0;
+  text-align: center;
+}

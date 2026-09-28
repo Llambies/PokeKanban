@@ -5,13 +5,12 @@
 //   PORT                   (default 3000)
 //   HOST                   (default 127.0.0.1; use 0.0.0.0 to allow other devices)
 //   POKEKANBAN_DATA_DIR    where data and backups are stored (default ./data)
-//   POKEKANBAN_PASSWORD    optional: enables HTTP Basic auth (any user name)
+//   POKEKANBAN_PASSWORD    optional: the app asks for this password (login screen, 90-day session)
 
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createApi } from './api.mjs';
 
@@ -22,7 +21,7 @@ const port = Number(process.env.PORT ?? 3000);
 const host = process.env.HOST ?? '127.0.0.1';
 const password = process.env.POKEKANBAN_PASSWORD ?? '';
 
-const api = createApi({ dataDir });
+const api = createApi({ dataDir, password });
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -38,21 +37,6 @@ const MIME = {
 };
 const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.json', '.svg', '.webmanifest', '.txt']);
 const cache = new Map();
-
-function safeEqual(a, b) {
-  const ha = crypto.createHash('sha256').update(a).digest();
-  const hb = crypto.createHash('sha256').update(b).digest();
-  return crypto.timingSafeEqual(ha, hb);
-}
-
-function authorized(req) {
-  if (!password) return true;
-  const header = req.headers.authorization ?? '';
-  if (!header.startsWith('Basic ')) return false;
-  const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
-  const pass = decoded.slice(decoded.indexOf(':') + 1);
-  return safeEqual(pass, password);
-}
 
 async function serveStatic(req, res) {
   const url = new URL(req.url ?? '/', 'http://localhost');
@@ -99,11 +83,7 @@ async function serveStatic(req, res) {
 
 const server = http.createServer(async (req, res) => {
   try {
-    if (!authorized(req)) {
-      res.writeHead(401, { 'www-authenticate': 'Basic realm="PokeKanban", charset="UTF-8"' });
-      res.end('Autenticación requerida');
-      return;
-    }
+    // The app shell is public; the data API checks the session itself.
     if (await api(req, res)) return;
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405).end();

@@ -14,7 +14,8 @@
     "test:e2e": "node tests/e2e/smoke.mjs",
     "check": "tsc -b && vitest run",
     "build:static": "tsc -b && vite build --mode static",
-    "deploy:cloudflare": "npm run build:static && npx wrangler deploy"
+    "deploy:cloudflare": "npm run build && npx wrangler deploy",
+    "dev:worker": "npm run build && wrangler dev"
   },
   "engines": {
     "node": ">=20.19"
@@ -37,6 +38,7 @@
     "playwright-core": "^1.63.0",
     "typescript": "~5.9",
     "vite": "^8.3.1",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.2",
+    "wrangler": "^4.143.0"
   }
 }

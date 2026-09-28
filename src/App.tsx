@@ -7,6 +7,7 @@ import { getBoardBackground } from './lib/colors';
 import { Header } from './components/layout/Header';
 import { ConflictBanner } from './components/layout/ConflictBanner';
 import { ShortcutsHelp } from './components/layout/ShortcutsHelp';
+import { LoginScreen } from './components/layout/LoginScreen';
 import { useGlobalShortcuts } from './components/layout/useGlobalShortcuts';
 import { HomePage } from './components/home/HomePage';
 import { BoardPage } from './components/board/BoardPage';
@@ -31,6 +32,8 @@ function useTheme() {
 export function App() {
   const ready = useStore((s) => s.ready);
   const fatal = usePersist((s) => s.fatal);
+  const fatalCode = usePersist((s) => s.fatalCode);
+  const needsLogin = usePersist((s) => s.needsLogin);
   const route = useRoute();
   const board = useStore((s) => (route.boardId ? s.data.boards[route.boardId] : undefined));
   useTheme();
@@ -49,6 +52,26 @@ export function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('is-kanban', !!board && route.view === 'kanban');
   }, [board, route.view]);
+
+  if (fatalCode === 'no-password') {
+    return (
+      <div className="splash splash--error" role="alert">
+        <h1>Falta la contraseña</h1>
+        <p>
+          Para que nadie más pueda ver tus tableros, el servidor necesita una contraseña antes de guardar nada.
+        </p>
+        <p className="muted">
+          En Cloudflare: <strong>Workers &amp; Pages → pokekanban → Ajustes → Variables y secretos → Añadir</strong>, de tipo
+          secreto, con el nombre <code>POKEKANBAN_PASSWORD</code> y tu contraseña como valor. Después recarga esta página.
+        </p>
+        <button type="button" className="btn btn--primary" onClick={() => window.location.reload()}>
+          Ya lo he configurado
+        </button>
+      </div>
+    );
+  }
+
+  if (needsLogin) return <LoginScreen />;
 
   if (fatal) {
     return (

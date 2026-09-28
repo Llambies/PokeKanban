@@ -124,7 +124,7 @@ export function HomePage() {
         </button>
         <p className="muted small">
           {mode === 'server'
-            ? 'Tus datos se guardan en el servidor (carpeta data/) con copias diarias automáticas.'
+            ? 'Tus datos se guardan en el servidor y se sincronizan entre tus dispositivos, con copias de seguridad automáticas cada hora.'
             : 'Tus datos se guardan en este navegador. Exporta copias de seguridad de vez en cuando.'}{' '}
           Sin límites de tableros, listas, tarjetas ni etiquetas.
         </p>

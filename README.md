@@ -79,7 +79,7 @@ npm run dev        # http://localhost:5173
 | `PORT` | `3000` | Puerto del servidor |
 | `HOST` | `127.0.0.1` | Usa `0.0.0.0` para acceder desde otros dispositivos de tu red |
 | `POKEKANBAN_DATA_DIR` | `./data` | Carpeta de datos y copias de seguridad |
-| `POKEKANBAN_PASSWORD` | _(vacía)_ | Si se define, pide contraseña (HTTP Basic, cualquier usuario). Recomendado si lo expones fuera de casa, siempre detrás de HTTPS |
+| `POKEKANBAN_PASSWORD` | _(vacía)_ | Si se define, la app pide esta contraseña (pantalla de login, sesión de 90 días). Recomendado si lo expones fuera de casa, siempre detrás de HTTPS |
 
 ### Docker
 
@@ -88,19 +88,25 @@ docker build -t pokekanban .
 docker run -d -p 3000:3000 -v pokekanban-data:/data --name pokekanban pokekanban
 ```
 
-### Cloudflare
+### Cloudflare (recomendado para usarlo desde varios dispositivos)
 
-Versión estática (los datos se guardan en el navegador de cada dispositivo, sin subida de archivos).
-Desde el panel de Cloudflare, sin instalar nada:
+Un Worker sirve la app y guarda los tableros en la nube de tu cuenta (un Durable Object con SQLite,
+incluido en el plan gratuito), con login, copias de seguridad por hora y archivos adjuntos.
+Lo que hagas en el móvil aparece en el ordenador y al revés.
 
-1. **Workers & Pages → Crear → Importar un repositorio** y elige este repositorio y la rama.
-2. Comando de compilación: `npm run build:static`. Comando de despliegue: `npx wrangler deploy`
-   (usa `wrangler.jsonc`). La versión de Node la toma de `.node-version`.
+1. En el panel de Cloudflare: **Workers & Pages → Crear → Importar un repositorio**, elige este
+   repositorio y la rama. Deja el nombre del proyecto como `pokekanban` (debe coincidir con `wrangler.jsonc`).
+2. Comando de compilación: `npm run build`. Comando de despliegue: `npx wrangler deploy`.
+3. Cuando termine: **pokekanban → Ajustes → Variables y secretos → Añadir**, de tipo *secreto*,
+   nombre `POKEKANBAN_PASSWORD` y tu contraseña. Sin ella la app no guarda nada (y te lo indica).
+4. Abre la dirección `*.workers.dev` que te da Cloudflare y entra con esa contraseña.
 
-Cada push a la rama vuelve a desplegar. Si prefieres Pages: preajuste *Ninguno*, compilación
-`npm run build:static` y directorio de salida `dist`.
+Cada push a la rama vuelve a desplegar. Cambiar la contraseña cierra la sesión en todos los dispositivos.
+Desde la terminal: `npx wrangler secret put POKEKANBAN_PASSWORD` y `npm run deploy:cloudflare`.
+Para probar el Worker en local: crea `.dev.vars` con `POKEKANBAN_PASSWORD=...` y ejecuta `npm run dev:worker`.
 
-Desde la terminal, con `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID` definidos: `npm run deploy:cloudflare`.
+Si solo quieres una versión sin servidor (cada navegador guarda sus propios datos), compila con
+`npm run build:static` y publica `dist/` en cualquier hosting estático.
 
 ### Sin servidor
 
@@ -124,7 +130,8 @@ npm run build && npm run test:e2e # test de extremo a extremo con Chromium (play
 ## Estructura
 
 ```
-server/          servidor Node sin dependencias (estáticos + API JSON) y API compartida con Vite
+server/          núcleo de la API (compartido por Node y Cloudflare), servidor Node y almacenamiento en disco
+worker/          Worker de Cloudflare (Durable Object para los datos)
 src/types.ts     modelo de datos
 src/store/       estado (zustand + immer, con historial para deshacer), persistencia, normalización
 src/lib/         utilidades: colores, iconos, fechas, árbol de checklists, filtros, importador de Trello…
