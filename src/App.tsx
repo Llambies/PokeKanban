@@ -4,6 +4,7 @@ import { usePersist } from './store/persistence';
 import { usePrefs, clearFilter, useUI } from './store/ui';
 import { useRoute, navigate } from './lib/router';
 import { getBoardBackground } from './lib/colors';
+import { syncSystemBars } from './lib/native';
 import { Header } from './components/layout/Header';
 import { ConflictBanner } from './components/layout/ConflictBanner';
 import { ShortcutsHelp } from './components/layout/ShortcutsHelp';
@@ -54,6 +55,12 @@ export function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('is-kanban', !!board && route.view === 'kanban');
   }, [board, route.view]);
+
+  const theme = usePrefs((s) => s.theme);
+  useEffect(() => {
+    // Boards have a dark top bar; elsewhere it follows the theme.
+    syncSystemBars(!!board || document.documentElement.dataset.theme === 'dark');
+  }, [board, theme]);
 
   if (fatalCode === 'no-password') {
     return (

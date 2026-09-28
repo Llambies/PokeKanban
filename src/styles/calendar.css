@@ -703,8 +703,8 @@
 
 .cal-fab {
   position: fixed;
-  right: 20px;
-  bottom: 24px;
+  right: calc(20px + env(safe-area-inset-right, 0px));
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   z-index: 40;
   display: none;
   place-items: center;
@@ -1079,7 +1079,7 @@
   }
 
   .cal-page {
-    padding: 10px 8px 96px;
+    padding: 10px 8px calc(96px + env(safe-area-inset-bottom, 0px));
   }
 
   .cal-toolbar__title {

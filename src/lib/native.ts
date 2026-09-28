@@ -1,4 +1,4 @@
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor, registerPlugin, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { useStore } from '../store/store';
 import { agenda, collectReminders } from '../../shared/calendar.js';
 import { todayKey } from './dates';
@@ -61,4 +61,25 @@ export function startNativeBridge(): void {
   // Refresh "today", overdue items and the reminders window from time to time.
   window.setInterval(() => schedule(0), 30 * 60_000);
   schedule(0);
+  void askNotificationsOnce();
+}
+
+const ASKED_KEY = 'pokekanban:notifications-asked';
+
+/** First launch: ask for the notification permission (a calendar is not much use without it). */
+async function askNotificationsOnce(): Promise<void> {
+  try {
+    if (localStorage.getItem(ASKED_KEY)) return;
+    localStorage.setItem(ASKED_KEY, '1');
+    const status = await Native.status();
+    if (!status.notifications) await Native.requestNotifications();
+  } catch {
+    // Not critical: the calendar settings have a button for it.
+  }
+}
+
+/** Status bar icons readable on the app's top bar (light icons on dark bars and vice versa). */
+export function syncSystemBars(dark: boolean): void {
+  if (!isNativeApp()) return;
+  void SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => {});
 }

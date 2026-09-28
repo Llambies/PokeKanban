@@ -2,6 +2,7 @@ package com.llambies.pokekanban;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.text.TextUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -79,7 +80,7 @@ final class Store {
     }
 
     static void setScheduledIds(Context ctx, List<String> ids) {
-        prefs(ctx).edit().putString("scheduled", String.join("\n", ids)).apply();
+        prefs(ctx).edit().putString("scheduled", TextUtils.join("\n", ids)).apply();
     }
 
     static synchronized boolean wasDelivered(Context ctx, String id) {
@@ -91,7 +92,7 @@ final class Store {
         ids.add(id);
         List<String> list = new ArrayList<>(ids);
         if (list.size() > MAX_DELIVERED) list = list.subList(list.size() - MAX_DELIVERED, list.size());
-        prefs(ctx).edit().putString("delivered", String.join("\n", list)).apply();
+        prefs(ctx).edit().putString("delivered", TextUtils.join("\n", list)).apply();
     }
 
     private static List<String> split(String text) {
