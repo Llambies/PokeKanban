@@ -100,6 +100,12 @@ html.is-kanban {
   overflow-y: hidden;
 }
 
+/* The app must be as wide as the scrolled board so the sticky header/toolbar stay in view. */
+html.is-kanban .app {
+  width: max-content;
+  min-width: 100vw;
+}
+
 button,
 input,
 textarea,
@@ -1081,4 +1087,90 @@ kbd {
   border-radius: 4px;
   background: var(--hover-strong);
   overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------ touch screens */
+
+/* No hover and no right click: keep the "…" quick-action buttons visible and targets larger. */
+@media (hover: none) {
+  .ctx-item {
+    min-height: 42px;
+  }
+
+  .ctx-menu {
+    min-width: 240px;
+  }
+
+  .card-tile__menu,
+  .board-tile__star,
+  .board-tile__more,
+  .calendar__add,
+  .cl-item__grip,
+  .cl-item__action {
+    opacity: 1 !important;
+  }
+
+  .card-tile__menu {
+    top: 6px;
+    right: 6px;
+    width: 28px;
+    height: 28px;
+    background: color-mix(in srgb, var(--surface-raised) 85%, transparent);
+    box-shadow: none;
+  }
+
+  .card-tile:hover {
+    box-shadow: var(--shadow-card);
+  }
+
+  .card-tile__title {
+    padding-right: 28px;
+  }
+}
+
+/* Narrow screens: menus become bottom sheets; submenus stack on top with a back row. */
+.ctx-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: var(--backdrop);
+  animation: fade-in 0.12s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.ctx-menu--sheet {
+  left: 0 !important;
+  right: 0;
+  bottom: 0;
+  top: auto !important;
+  max-width: none;
+  max-height: 75vh;
+  padding: 6px 0 calc(8px + env(safe-area-inset-bottom));
+  border-radius: 16px 16px 0 0;
+  animation: sheet-in 0.16s ease-out;
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+.ctx-back {
+  font-weight: 700;
+  color: var(--text-strong);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.ctx-menu--sheet .swatch-grid,
+.ctx-menu--sheet .bg-grid--menu {
+  min-width: 0;
+  width: 100%;
 }

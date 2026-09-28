@@ -1,12 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronRight } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../../store/store';
 import { consumeEvent, useLayer } from '../../lib/layers';
 import { closeContextMenu, useMenu, type MenuActionItem, type MenuItem } from './menuStore';
 
 const SUBMENU_DELAY = 110;
 const MARGIN = 6;
+/** Below this width menus open as bottom sheets and submenus drill down instead of cascading. */
+const SHEET_BREAKPOINT = 600;
+
+function isSheetMode(): boolean {
+  return window.innerWidth < SHEET_BREAKPOINT;
+}
 
 function isAction(item: MenuItem): item is MenuActionItem {
   return item.kind === undefined || item.kind === 'item';
@@ -21,10 +27,13 @@ interface PanelProps {
   onBack?: () => void;
   /** Called when the pointer enters this panel (keeps the parent submenu open). */
   onEnter?: () => void;
+  /** Label of the parent item (shown as a "back" row in sheet mode). */
+  title?: string;
 }
 
-function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter }: PanelProps) {
+function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter, title }: PanelProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const sheet = isSheetMode();
   // opacity (not visibility) while measuring, so the menu can take keyboard focus immediately.
   const [style, setStyle] = useState<CSSProperties>({ opacity: 0, left: 0, top: 0 });
   const [active, setActive] = useState(-1);
@@ -34,6 +43,10 @@ function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter }: PanelPr
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
+    if (sheet) {
+      setStyle({});
+      return;
+    }
     // offset* sizes ignore the opening scale animation.
     const width = el.offsetWidth;
     const height = el.offsetHeight;
@@ -142,7 +155,7 @@ function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter }: PanelPr
     <>
       <div
         ref={ref}
-        className="ctx-menu"
+        className={`ctx-menu ${sheet ? 'ctx-menu--sheet' : ''}`}
         role="menu"
         tabIndex={-1}
         style={{ ...style, zIndex: 1000 + depth }}
@@ -150,6 +163,12 @@ function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter }: PanelPr
         onMouseEnter={onEnter}
         onContextMenu={(e) => e.preventDefault()}
       >
+        {sheet && onBack && (
+          <button type="button" className="ctx-item ctx-back" onClick={onBack}>
+            <ChevronLeft size={16} />
+            <span className="ctx-label">{title}</span>
+          </button>
+        )}
         {items.map((item, i) => {
           if (item.kind === 'separator') return <div key={`sep-${i}`} className="ctx-sep" role="separator" />;
           if (item.kind === 'header') return <div key={`h-${i}`} className="ctx-header">{item.label}</div>;
@@ -193,6 +212,7 @@ function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter }: PanelPr
       {openSub && sub && isAction(sub) && sub.submenu && (
         <MenuPanel
           key={openSub.index}
+          title={sub.label}
           items={sub.submenu()}
           anchor={openSub.rect}
           depth={depth + 1}
@@ -247,7 +267,10 @@ export function ContextMenuHost() {
   const items = build();
   if (items.length === 0) return null;
   return createPortal(
-    <MenuPanel key={`${x},${y}`} items={items} anchor={anchor.current} depth={0} autoFocus />,
+    <>
+      {isSheetMode() && <div className="ctx-backdrop" />}
+      <MenuPanel key={`${x},${y}`} items={items} anchor={anchor.current} depth={0} autoFocus />
+    </>,
     document.body,
   );
 }

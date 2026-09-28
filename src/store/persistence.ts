@@ -188,8 +188,11 @@ export async function resolveConflict(keep: 'server' | 'mine'): Promise<void> {
   setStatus('saved');
 }
 
+/** Static builds (`npm run build:static`, e.g. Cloudflare Pages) never look for the storage API. */
+const STATIC_BUILD = import.meta.env.VITE_STORAGE === 'local';
+
 export async function initPersistence(): Promise<void> {
-  const probe = await probeServer();
+  const probe: Probe = STATIC_BUILD ? { kind: 'none' } : await probeServer();
   if (probe.kind === 'broken') {
     usePersist.setState({ mode: 'server', status: 'error', fatal: probe.message });
     return;

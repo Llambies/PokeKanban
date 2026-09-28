@@ -103,10 +103,11 @@ export function sampleData(): AppData {
 
   const cards: Card[] = [
     makeCard(board.id, todo.id, 'Esto es un separador', { kind: 'separator', cover: { color: 'purple_bold', image: null, size: 'full' } }),
-    makeCard(board.id, todo.id, 'Haz clic derecho sobre cualquier tarjeta 👉', {
+    makeCard(board.id, todo.id, 'Haz clic derecho (o toca «…») en cualquier tarjeta 👉', {
       labelIds: [idea.id],
       description:
-        'El **menú contextual** permite cambiar etiquetas, portada, fechas, prioridad o mover la tarjeta sin abrirla.\n\n' +
+        'El **menú contextual** permite cambiar etiquetas, portada, fechas, prioridad o mover la tarjeta sin abrirla. ' +
+        'En el móvil, toca el botón «…» de la tarjeta.\n\n' +
         'También funciona sobre las listas, el fondo del tablero y los elementos de checklist.',
     }),
     makeCard(board.id, todo.id, 'Planificar vacaciones', {
