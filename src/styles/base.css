@@ -1067,3 +1067,18 @@ kbd {
     width: 160px;
   }
 }
+
+.splash--error {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 24px;
+  text-align: center;
+  color: var(--text);
+}
+
+.splash--error code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--hover-strong);
+  overflow-wrap: anywhere;
+}

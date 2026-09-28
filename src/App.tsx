@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from './store/store';
+import { usePersist } from './store/persistence';
 import { usePrefs, clearFilter, useUI } from './store/ui';
 import { useRoute, navigate } from './lib/router';
 import { getBoardBackground } from './lib/colors';
@@ -29,6 +30,7 @@ function useTheme() {
 
 export function App() {
   const ready = useStore((s) => s.ready);
+  const fatal = usePersist((s) => s.fatal);
   const route = useRoute();
   const board = useStore((s) => (route.boardId ? s.data.boards[route.boardId] : undefined));
   useTheme();
@@ -47,6 +49,24 @@ export function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('is-kanban', !!board && route.view === 'kanban');
   }, [board, route.view]);
+
+  if (fatal) {
+    return (
+      <div className="splash splash--error" role="alert">
+        <h1>No se pudieron cargar los datos</h1>
+        <p>
+          El servidor respondió: <code>{fatal}</code>
+        </p>
+        <p className="muted">
+          No se ha cargado nada para no sobrescribir tus datos. Revisa <code>data/pokekanban.json</code> en el servidor
+          (hay copias en <code>data/backups/</code>) y vuelve a intentarlo.
+        </p>
+        <button type="button" className="btn btn--primary" onClick={() => window.location.reload()}>
+          Reintentar
+        </button>
+      </div>
+    );
+  }
 
   if (!ready) {
     return (

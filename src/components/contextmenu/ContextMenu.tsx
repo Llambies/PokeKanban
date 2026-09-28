@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { createPortal } from 'react-dom';
 import { Check, ChevronRight } from 'lucide-react';
 import { useStore } from '../../store/store';
+import { consumeEvent, useLayer } from '../../lib/layers';
 import { closeContextMenu, useMenu, type MenuActionItem, type MenuItem } from './menuStore';
 
 const SUBMENU_DELAY = 110;
@@ -24,7 +25,8 @@ interface PanelProps {
 
 function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter }: PanelProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const [style, setStyle] = useState<CSSProperties>({ visibility: 'hidden', left: 0, top: 0 });
+  // opacity (not visibility) while measuring, so the menu can take keyboard focus immediately.
+  const [style, setStyle] = useState<CSSProperties>({ opacity: 0, left: 0, top: 0 });
   const [active, setActive] = useState(-1);
   const [openSub, setOpenSub] = useState<{ index: number; rect: DOMRect; viaKeyboard: boolean } | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -92,7 +94,7 @@ function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter }: PanelPr
       case 'ArrowUp':
         e.preventDefault();
         e.stopPropagation();
-        setActive(focusable[(pos - 1 + focusable.length) % focusable.length] ?? -1);
+        setActive(focusable[pos < 0 ? focusable.length - 1 : (pos - 1 + focusable.length) % focusable.length] ?? -1);
         break;
       case 'ArrowRight': {
         e.preventDefault();
@@ -216,26 +218,26 @@ export function ContextMenuHost() {
   const anchor = useRef<{ x: number; y: number }>({ x, y });
   if (anchor.current.x !== x || anchor.current.y !== y) anchor.current = { x, y };
 
+  // Topmost layer while open: Escape closes the menu, not the modal underneath.
+  useLayer(closeContextMenu, open);
+
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('.ctx-menu')) closeContextMenu();
+      if ((e.target as HTMLElement).closest('.ctx-menu')) return;
+      consumeEvent(e);
+      closeContextMenu();
     };
     const onScroll = (e: Event) => {
       if (!(e.target instanceof HTMLElement && e.target.closest('.ctx-menu'))) closeContextMenu();
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeContextMenu();
-    };
     document.addEventListener('mousedown', onDown, true);
     document.addEventListener('scroll', onScroll, true);
-    document.addEventListener('keydown', onKey);
     window.addEventListener('resize', closeContextMenu);
     window.addEventListener('blur', closeContextMenu);
     return () => {
       document.removeEventListener('mousedown', onDown, true);
       document.removeEventListener('scroll', onScroll, true);
-      document.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', closeContextMenu);
       window.removeEventListener('blur', closeContextMenu);
     };

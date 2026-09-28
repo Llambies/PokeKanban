@@ -58,8 +58,9 @@ export function TableView({ boardId }: { boardId: string }) {
   if (!board) return null;
   const labelsById = new Map(board.labels.map((l) => [l.id, l]));
 
-  const Th = ({ k, children, className }: { k: SortKey; children: React.ReactNode; className?: string }) => (
-    <th className={className}>
+  // Render helper (not a nested component, which would remount the headers on every render).
+  const th = (k: SortKey, children: React.ReactNode, className?: string) => (
+    <th key={k} className={className}>
       <button type="button" className="th-btn" onClick={() => setSort((s) => ({ key: k, dir: s.key === k ? (-s.dir as 1 | -1) : 1 }))}>
         {children}
         {sort.key === k && (sort.dir === 1 ? <ArrowUp size={13} /> : <ArrowDown size={13} />)}
@@ -73,18 +74,14 @@ export function TableView({ boardId }: { boardId: string }) {
         <table className="data-table">
           <thead>
             <tr>
-              <Th k="title">Tarjeta</Th>
-              <Th k="list">Lista</Th>
+              {th('title', 'Tarjeta')}
+              {th('list', 'Lista')}
               <th>Etiquetas</th>
-              <Th k="priority">Prioridad</Th>
-              <Th k="due">Vencimiento</Th>
-              <Th k="progress">Checklist</Th>
-              {board.fields.map((f) => (
-                <Th key={f.id} k={`f:${f.id}`}>
-                  {f.name}
-                </Th>
-              ))}
-              <Th k="updated" className="hide-sm">Actualizada</Th>
+              {th('priority', 'Prioridad')}
+              {th('due', 'Vencimiento')}
+              {th('progress', 'Checklist')}
+              {board.fields.map((f) => th(`f:${f.id}`, f.name))}
+              {th('updated', 'Actualizada', 'hide-sm')}
             </tr>
           </thead>
           <tbody>

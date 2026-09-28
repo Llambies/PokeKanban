@@ -19,6 +19,8 @@ interface PersistState {
   status: SaveStatus;
   error: string | null;
   lastSavedAt: number | null;
+  /** The server exists but can't load the data: nothing is loaded so nothing gets overwritten. */
+  fatal: string | null;
 }
 
 export const usePersist = create<PersistState>(() => ({
@@ -26,13 +28,19 @@ export const usePersist = create<PersistState>(() => ({
   status: 'loading',
   error: null,
   lastSavedAt: null,
+  fatal: null,
 }));
 
 const LS_KEY = 'pokekanban:data';
 const API = 'api/data';
 const SAVE_DELAY = 600;
 const RETRY_DELAY = 5000;
+/** Browsers cap keepalive request bodies at 64 KiB (in bytes). */
 const KEEPALIVE_LIMIT = 60_000;
+
+function byteLength(text: string): number {
+  return new Blob([text]).size;
+}
 
 let rev = 0;
 let dirty = false;
@@ -71,15 +79,28 @@ function applyRemote(data: AppData): void {
   applyingRemote = false;
 }
 
-async function fetchServer(): Promise<{ rev: number; data: unknown } | null> {
+type Probe = { kind: 'ok'; rev: number; data: unknown } | { kind: 'broken'; message: string } | { kind: 'none' };
+
+/**
+ * "none": there is no storage API (static hosting) -> browser storage.
+ * "broken": our server answered with an error (e.g. unreadable data file) -> stop, don't fall back.
+ */
+async function probeServer(): Promise<Probe> {
+  let res: Response;
   try {
-    const res = await fetch(API, { cache: 'no-store', headers: { accept: 'application/json' } });
-    if (!res.ok || !(res.headers.get('content-type') ?? '').includes('application/json')) return null;
-    const json = await res.json();
-    return typeof json?.rev === 'number' ? json : null;
+    res = await fetch(API, { cache: 'no-store', headers: { accept: 'application/json' } });
   } catch {
-    return null;
+    return { kind: 'none' };
   }
+  if (!(res.headers.get('content-type') ?? '').includes('application/json')) return { kind: 'none' };
+  const json = await res.json().catch(() => null);
+  if (res.ok && typeof json?.rev === 'number') return { kind: 'ok', rev: json.rev, data: json.data };
+  return { kind: 'broken', message: json?.error ? String(json.error) : `HTTP ${res.status}` };
+}
+
+async function fetchServer(): Promise<{ rev: number; data: unknown } | null> {
+  const probe = await probeServer();
+  return probe.kind === 'ok' ? probe : null;
 }
 
 async function flushServer(force = false): Promise<void> {
@@ -96,7 +117,7 @@ async function flushServer(force = false): Promise<void> {
       headers: { 'content-type': 'application/json' },
       body,
       // Small payloads survive the tab being closed mid-request.
-      keepalive: body.length < KEEPALIVE_LIMIT,
+      keepalive: byteLength(body) < KEEPALIVE_LIMIT,
     });
     if (res.status === 409) {
       dirty = true;
@@ -168,7 +189,12 @@ export async function resolveConflict(keep: 'server' | 'mine'): Promise<void> {
 }
 
 export async function initPersistence(): Promise<void> {
-  const server = await fetchServer();
+  const probe = await probeServer();
+  if (probe.kind === 'broken') {
+    usePersist.setState({ mode: 'server', status: 'error', fatal: probe.message });
+    return;
+  }
+  const server = probe.kind === 'ok' ? probe : null;
   if (server) {
     usePersist.setState({ mode: 'server' });
     rev = server.rev;
@@ -202,7 +228,7 @@ export async function initPersistence(): Promise<void> {
       return;
     }
     if (!dirty && !inflight) return;
-    const size = JSON.stringify(useStore.getState().data).length;
+    const size = byteLength(JSON.stringify({ baseRev: rev, data: useStore.getState().data, force: false }));
     if (dirty && !inflight && size < KEEPALIVE_LIMIT && usePersist.getState().status !== 'conflict') {
       // Sent with keepalive: completes even though the page is closing.
       void flushServer();

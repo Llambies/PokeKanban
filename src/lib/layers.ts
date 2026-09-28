@@ -22,6 +22,20 @@ document.addEventListener('keydown', (e) => {
   top.onEscape();
 });
 
+/**
+ * Events already used to dismiss an overlay (e.g. the mousedown that closed a popover),
+ * so the layer underneath doesn't react to the same click.
+ */
+const consumed = new WeakSet<Event>();
+
+export function consumeEvent(e: Event): void {
+  consumed.add(e);
+}
+
+export function isConsumed(e: Event): boolean {
+  return consumed.has(e);
+}
+
 export function hasOpenLayers(): boolean {
   return stack.length > 0;
 }

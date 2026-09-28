@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useLayer } from '../../lib/layers';
+import { isConsumed, useLayer } from '../../lib/layers';
 
 interface ModalProps {
   onClose: () => void;
@@ -24,7 +24,8 @@ export function Modal({ onClose, children, className, labelledBy }: ModalProps) 
     <div
       className="modal-backdrop"
       onMouseDown={(e) => {
-        downOnBackdrop.current = e.target === e.currentTarget && isTop();
+        // Ignore the click that just dismissed a popover or menu on top of the modal.
+        downOnBackdrop.current = e.target === e.currentTarget && isTop() && !isConsumed(e.nativeEvent);
       }}
       onMouseUp={(e) => {
         if (downOnBackdrop.current && e.target === e.currentTarget && isTop()) onClose();

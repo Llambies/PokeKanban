@@ -32,6 +32,19 @@ describe('normalizeData', () => {
     expect(fixed.cards[someCard].checklists).toEqual([]);
   });
 
+  it('accepts numeric ids', () => {
+    const fixed = normalizeData({
+      boardOrder: [5],
+      boards: { 5: { id: 5, title: 'N', listIds: [7], labels: [] } },
+      lists: { 7: { id: 7, boardId: 5, title: 'L', cardIds: [9] } },
+      cards: { 9: { id: 9, boardId: 5, listId: 7, title: 'C' } },
+    });
+    expect(fixed.boardOrder).toEqual(['5']);
+    expect(fixed.boards['5'].listIds).toEqual(['7']);
+    expect(fixed.lists['7'].cardIds).toEqual(['9']);
+    expect(fixed.cards['9'].title).toBe('C');
+  });
+
   it('returns empty data for garbage', () => {
     expect(normalizeData(null).boardOrder).toEqual([]);
     expect(normalizeData('x').boardOrder).toEqual([]);
@@ -99,6 +112,8 @@ describe('Trello import', () => {
     expect(state.type).toBe('select');
     expect(second.fields[points.id]).toBe(3);
     expect(second.fields[state.id]).toBe(state.options[0].id);
+    const withObjectId = convertTrello({ ...trello, cards: [{ ...trello.cards[0], id: '5f5a8f000000000000000000' }] });
+    expect(withObjectId.cards[0].createdAt).toBe(0x5f5a8f00 * 1000);
     const archived = cards.find((c) => c.title === 'Archived')!;
     expect(archived.archived).toBe(true);
     expect(lists.find((l) => l.title === 'Doing')!.cardIds).not.toContain(archived.id);

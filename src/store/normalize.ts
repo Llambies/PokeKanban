@@ -13,10 +13,13 @@ const strOrNull = (v: Raw): string | null => (typeof v === 'string' && v !== '' 
 const num = (v: Raw, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 const arr = (v: Raw): Raw[] => (Array.isArray(v) ? v : []);
 const bool = (v: Raw): boolean => v === true;
+/** Ids may come as numbers from hand-written or foreign JSON. */
+const idOf = (v: Raw): string => (typeof v === 'string' ? v : typeof v === 'number' && Number.isFinite(v) ? String(v) : '');
+const ids = (v: Raw): string[] => arr(v).map(idOf).filter(Boolean);
 
 function normItem(raw: Raw): ChecklistItem {
   return {
-    id: str(raw?.id) || uid(),
+    id: idOf(raw?.id) || uid(),
     text: str(raw?.text),
     done: bool(raw?.done),
     due: strOrNull(raw?.due),
@@ -27,7 +30,7 @@ function normItem(raw: Raw): ChecklistItem {
 
 function normChecklist(raw: Raw): Checklist {
   return {
-    id: str(raw?.id) || uid(),
+    id: idOf(raw?.id) || uid(),
     title: str(raw?.title, 'Checklist'),
     items: arr(raw?.items).map(normItem),
     hideDone: bool(raw?.hideDone) || undefined,
@@ -35,17 +38,17 @@ function normChecklist(raw: Raw): Checklist {
 }
 
 function normLabel(raw: Raw): Label {
-  return { id: str(raw?.id) || uid(), name: str(raw?.name), color: strOrNull(raw?.color), icon: strOrNull(raw?.icon) };
+  return { id: idOf(raw?.id) || uid(), name: str(raw?.name), color: strOrNull(raw?.color), icon: strOrNull(raw?.icon) };
 }
 
 const FIELD_TYPES: CustomFieldType[] = ['text', 'number', 'checkbox', 'date', 'select'];
 
 function normField(raw: Raw): CustomField {
   return {
-    id: str(raw?.id) || uid(),
+    id: idOf(raw?.id) || uid(),
     name: str(raw?.name, 'Campo'),
     type: FIELD_TYPES.includes(raw?.type) ? raw.type : 'text',
-    options: arr(raw?.options).map((o) => ({ id: str(o?.id) || uid(), name: str(o?.name), color: strOrNull(o?.color) })),
+    options: arr(raw?.options).map((o) => ({ id: idOf(o?.id) || uid(), name: str(o?.name), color: strOrNull(o?.color) })),
     showOnCard: raw?.showOnCard !== false,
   };
 }
@@ -75,13 +78,13 @@ function normCard(raw: Raw, now: number): Card {
       }
     : null;
   return {
-    id: str(raw.id),
-    boardId: str(raw.boardId),
-    listId: str(raw.listId),
+    id: idOf(raw.id),
+    boardId: idOf(raw.boardId),
+    listId: idOf(raw.listId),
     kind: raw.kind === 'separator' ? 'separator' : 'card',
     title: str(raw.title),
     description: str(raw.description),
-    labelIds: arr(raw.labelIds).filter((x) => typeof x === 'string'),
+    labelIds: ids(raw.labelIds),
     cover: cover && (cover.color || cover.image) ? cover : null,
     start: strOrNull(raw.start),
     due: strOrNull(raw.due),
@@ -90,7 +93,7 @@ function normCard(raw: Raw, now: number): Card {
     checklists: arr(raw.checklists).map(normChecklist),
     attachments: arr(raw.attachments).map(
       (a): Attachment => ({
-        id: str(a?.id) || uid(),
+        id: idOf(a?.id) || uid(),
         name: str(a?.name),
         url: str(a?.url),
         createdAt: num(a?.createdAt, now),
@@ -101,7 +104,7 @@ function normCard(raw: Raw, now: number): Card {
     ),
     comments: arr(raw.comments).map(
       (c): Comment => ({
-        id: str(c?.id) || uid(),
+        id: idOf(c?.id) || uid(),
         text: str(c?.text),
         createdAt: num(c?.createdAt, now),
         ...(typeof c?.editedAt === 'number' ? { editedAt: c.editedAt } : {}),
@@ -118,10 +121,10 @@ function normCard(raw: Raw, now: number): Card {
 function normList(raw: Raw, now: number): List {
   const wip = num(raw.wipLimit, 0);
   return {
-    id: str(raw.id),
-    boardId: str(raw.boardId),
+    id: idOf(raw.id),
+    boardId: idOf(raw.boardId),
     title: str(raw.title),
-    cardIds: arr(raw.cardIds).filter((x) => typeof x === 'string'),
+    cardIds: ids(raw.cardIds),
     color: strOrNull(raw.color),
     colorMode: raw.colorMode === 'full' ? 'full' : 'header',
     collapsed: bool(raw.collapsed),
@@ -133,11 +136,11 @@ function normList(raw: Raw, now: number): List {
 
 function normBoard(raw: Raw, now: number): Board {
   return {
-    id: str(raw.id),
+    id: idOf(raw.id),
     title: str(raw.title, 'Tablero'),
     background: str(raw.background, 'ocean'),
     starred: bool(raw.starred),
-    listIds: arr(raw.listIds).filter((x) => typeof x === 'string'),
+    listIds: ids(raw.listIds),
     labels: arr(raw.labels).map(normLabel),
     fields: arr(raw.fields).map(normField),
     createdAt: num(raw.createdAt, now),
@@ -155,22 +158,24 @@ export function normalizeData(input: Raw): AppData {
   if (!input || typeof input !== 'object') return data;
 
   for (const raw of Object.values<Raw>(input.boards ?? {})) {
-    if (!raw?.id) continue;
-    data.boards[raw.id] = normBoard(raw, now);
+    if (!raw || !idOf(raw.id)) continue;
+    const board = normBoard(raw, now);
+    data.boards[board.id] = board;
   }
   for (const raw of Object.values<Raw>(input.lists ?? {})) {
-    if (!raw?.id || !data.boards[raw.boardId]) continue;
-    data.lists[raw.id] = normList(raw, now);
+    if (!raw || !idOf(raw.id) || !data.boards[idOf(raw.boardId)]) continue;
+    const list = normList(raw, now);
+    data.lists[list.id] = list;
   }
   for (const raw of Object.values<Raw>(input.cards ?? {})) {
-    if (!raw?.id || !data.lists[raw.listId]) continue;
+    if (!raw || !idOf(raw.id) || !data.lists[idOf(raw.listId)]) continue;
     const card = normCard(raw, now);
     card.boardId = data.lists[card.listId].boardId;
     data.cards[card.id] = card;
   }
 
   // Board order: keep known ids, append missing boards.
-  const order = arr(input.boardOrder).filter((id) => typeof id === 'string' && data.boards[id]);
+  const order = ids(input.boardOrder).filter((id) => data.boards[id]);
   for (const id of Object.keys(data.boards)) if (!order.includes(id)) order.push(id);
   data.boardOrder = [...new Set(order)];
 

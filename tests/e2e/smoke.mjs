@@ -219,6 +219,44 @@ try {
   await page.waitForSelector('.card-modal', { state: 'detached' });
   check((await page.locator('.card-tile', { hasText: 'Tarjeta de prueba' }).locator('.badge--field', { hasText: 'ACME' }).count()) === 1, 'el valor del campo aparece en la tarjeta');
 
+  console.log('Regresiones de la revisión');
+  await page.locator('.card-tile', { hasText: 'Tarjeta de prueba' }).click();
+  await page.waitForSelector('.card-modal');
+  const datesBtn = page.locator('.side-btn', { hasText: 'Fechas' });
+  await datesBtn.click();
+  const popBox = await page.locator('.popover').boundingBox();
+  const btnBox = await datesBtn.boundingBox();
+  check(Math.abs(popBox.y - (btnBox.y + btnBox.height + 6)) < 4 || popBox.y + popBox.height <= btnBox.y, `el popover se ancla al botón (${Math.round(popBox.x)},${Math.round(popBox.y)})`);
+  await page.mouse.click(30, 700); // backdrop, outside the modal
+  await page.waitForTimeout(100);
+  check((await page.locator('.popover').count()) === 0 && (await page.locator('.card-modal').count()) === 1, 'clic fuera cierra el popover pero no la tarjeta');
+  const item = page.locator('.cl-item', { hasText: 'Hijo 2' });
+  await item.click({ button: 'right' });
+  await page.waitForSelector('.ctx-menu');
+  check(await page.evaluate(() => !!document.activeElement?.closest('.ctx-menu')), 'el menú contextual recibe el foco');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  check((await page.locator('.cl-item.is-done', { hasText: 'Hijo 2' }).count()) === 1, 'flechas + Enter activan la opción del menú');
+  await item.click({ button: 'right' });
+  await page.keyboard.press('Escape');
+  check((await page.locator('.ctx-menu').count()) === 0 && (await page.locator('.card-modal').count()) === 1, 'Esc cierra el menú sin cerrar la tarjeta');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.card-modal', { state: 'detached' });
+  // The toast's "Deshacer" must not undo an unrelated later change.
+  const victim = page.locator('.card-tile', { hasText: 'Arreglar la bici' });
+  await victim.click({ button: 'right' });
+  await page.locator('.ctx-item', { hasText: 'Archivar' }).click();
+  await page.locator('.card-tile', { hasText: 'Otro padre' }).hover();
+  await page.keyboard.press('3');
+  await page.locator('.toast', { hasText: 'Tarjeta archivada' }).locator('.toast__action').click();
+  check(
+    (await page.locator('.card-tile', { hasText: 'Otro padre' }).locator('.label-chip', { hasText: 'Idea' }).count()) === 1,
+    'el «Deshacer» de un aviso no deshace otro cambio posterior',
+  );
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+  check((await page.locator('.card-tile', { hasText: 'Arreglar la bici' }).count()) === 1, 'Ctrl+Z paso a paso recupera la tarjeta');
+
   console.log('Vistas');
   await page.locator('.board-header__btn', { hasText: 'Tabla' }).click();
   await page.waitForSelector('.data-table');

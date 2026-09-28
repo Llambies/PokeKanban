@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, X } from 'lucide-react';
-import { useLayer } from '../../lib/layers';
+import { consumeEvent, useLayer } from '../../lib/layers';
 
 interface PopoverProps {
   anchor: HTMLElement | DOMRect | null;
@@ -17,7 +17,8 @@ const MARGIN = 8;
 
 export function Popover({ anchor, onClose, title, onBack, width = 304, className, children }: PopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const [style, setStyle] = useState<CSSProperties>({ visibility: 'hidden', top: 0, left: 0, width });
+  // opacity (not visibility) while measuring, so the popover can take focus right away.
+  const [style, setStyle] = useState<CSSProperties>({ opacity: 0, top: 0, left: 0, width });
   const isTop = useLayer(onClose);
 
   useLayoutEffect(() => {
@@ -55,7 +56,10 @@ export function Popover({ anchor, onClose, title, onBack, width = 304, className
       if (ref.current?.contains(target)) return;
       if (target.closest('.ctx-menu, .dialog')) return;
       if (anchor instanceof HTMLElement && anchor.contains(target)) return;
-      if (isTop()) onClose();
+      if (isTop()) {
+        consumeEvent(e);
+        onClose();
+      }
     };
     document.addEventListener('mousedown', onDown, true);
     return () => document.removeEventListener('mousedown', onDown, true);

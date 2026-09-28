@@ -62,7 +62,8 @@ npm run build
 npm start          # http://localhost:3000
 ```
 
-Los datos se guardan en `data/pokekanban.json`, con una copia diaria en `data/backups/` (se conservan 30 días).
+Los datos se guardan en `data/pokekanban.json`. Antes del primer cambio de cada hora se guarda una copia del estado
+anterior en `data/backups/` (se conservan todas las de las últimas 48 horas y una por día durante 30 días).
 Los archivos adjuntos van a `data/uploads/`. Para hacer una copia completa basta con copiar la carpeta `data/`.
 
 Para desarrollo (recarga en caliente, mismo almacenamiento en `data/`):

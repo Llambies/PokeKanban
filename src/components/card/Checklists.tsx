@@ -70,7 +70,9 @@ function ItemComposer({ ctx, composer, depth, autoFocus = true }: { ctx: Ctx; co
     if (autoFocus) ref.current?.focus();
   }, [autoFocus, composer.parentId, composer.afterId]);
 
-  const items = () => S.getData().cards[card.id]?.checklists.find((c) => c.id === composer.clId)?.items ?? [];
+  const checklist = () => S.getData().cards[card.id]?.checklists.find((c) => c.id === composer.clId);
+  const items = () => checklist()?.items ?? [];
+  const hideDone = () => !!checklist()?.hideDone;
 
   const submit = () => {
     const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -88,7 +90,7 @@ function ItemComposer({ ctx, composer, depth, autoFocus = true }: { ctx: Ctx; co
     if (!composer.afterId) return;
     const loc = tree.locate(items(), composer.afterId);
     if (!loc || loc.depth + 1 >= tree.MAX_LEVELS) return;
-    const children = loc.item.children;
+    const children = visible(loc.item.children, hideDone());
     setComposer({ ...composer, parentId: loc.item.id, afterId: children.length ? children[children.length - 1].id : null });
     if (loc.item.collapsed) S.updateChecklistItem(card.id, composer.clId, loc.item.id, { collapsed: false });
   };
@@ -287,7 +289,9 @@ function ItemRow({ ctx, cl, item, index, depth }: ItemRowProps) {
   const canAddChild = depth + 1 < tree.MAX_LEVELS;
 
   const addChild = () => {
-    const last = item.children[item.children.length - 1];
+    // Insert after the last *visible* child, so the composer shows up where the user looks.
+    const shownChildren = visible(item.children, cl.hideDone);
+    const last = shownChildren[shownChildren.length - 1];
     if (item.collapsed) S.updateChecklistItem(card.id, cl.id, item.id, { collapsed: false });
     ctx.setComposer({ clId: cl.id, parentId: item.id, afterId: last?.id ?? null });
   };

@@ -8,8 +8,9 @@
 //   POST /api/uploads?name=x   <- raw file body            -> { url, name, size, type }
 //   GET  /api/uploads/<file>   -> uploaded file (sandboxed)
 //
-// Every save rewrites the data file atomically and refreshes a daily backup
-// (data/backups/pokekanban-YYYY-MM-DD.json), keeping the last MAX_BACKUPS days.
+// Every save rewrites the data file atomically. Before the first save of each hour the previous
+// state is copied to data/backups/pokekanban-YYYY-MM-DD-HHh.json (UTC); snapshots from the last
+// 48 hours are kept, plus the first one of each day for MAX_BACKUPS days.
 //
 // Writes are only accepted from the app's own origin (JSON body / custom header,
 // which browsers never send cross-site without a CORS preflight we don't answer).
@@ -23,6 +24,7 @@ const MAX_BODY = 50 * 1024 * 1024;
 const MAX_UPLOAD = 25 * 1024 * 1024;
 const MAX_BACKUPS = 30;
 const FILE_NAME = 'pokekanban.json';
+const BACKUP_NAME = /^pokekanban-(\d{4}-\d{2}-\d{2})(?:-(\d{2})h)?\.json$/;
 const ROUTE = /(?:^|\/)api\/(meta|data|backups|uploads)(?:\/([^/]+))?$/;
 
 const UPLOAD_TYPES = {
@@ -63,18 +65,46 @@ export function createApi({ dataDir }) {
     return doc;
   }
 
+  /**
+   * Before the first save of each hour, the current file (the state *before* the change) is copied
+   * to backups/. A destructive save can therefore always be rolled back to at most an hour earlier.
+   */
+  async function snapshot() {
+    const stamp = new Date().toISOString().slice(0, 13).replace('T', '-');
+    const target = path.join(backupsDir, `pokekanban-${stamp}h.json`);
+    if (await fs.stat(target).catch(() => null)) return;
+    try {
+      await fs.copyFile(file, target);
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
+    }
+  }
+
+  /** Keeps every snapshot from the last 48 hours plus the first one of each day for MAX_BACKUPS days. */
+  async function prune() {
+    const now = Date.now();
+    const names = (await fs.readdir(backupsDir)).filter((n) => BACKUP_NAME.test(n)).sort();
+    const keptDays = new Set();
+    for (const name of names) {
+      const [, day, hour = '00'] = BACKUP_NAME.exec(name);
+      const time = Date.parse(`${day}T${hour}:00:00Z`);
+      const age = now - time;
+      if (age < 48 * 3600e3) continue;
+      if (age < MAX_BACKUPS * 24 * 3600e3 && !keptDays.has(day)) {
+        keptDays.add(day);
+        continue;
+      }
+      await fs.rm(path.join(backupsDir, name), { force: true });
+    }
+  }
+
   async function persist(next) {
     await fs.mkdir(backupsDir, { recursive: true });
-    const json = JSON.stringify(next);
+    await snapshot();
     const tmp = `${file}.${process.pid}.tmp`;
-    await fs.writeFile(tmp, json);
+    await fs.writeFile(tmp, JSON.stringify(next));
     await fs.rename(tmp, file);
-    const day = new Date().toISOString().slice(0, 10);
-    await fs.writeFile(path.join(backupsDir, `pokekanban-${day}.json`), json);
-    const backups = (await fs.readdir(backupsDir)).filter((n) => n.endsWith('.json')).sort();
-    for (const old of backups.slice(0, Math.max(0, backups.length - MAX_BACKUPS))) {
-      await fs.rm(path.join(backupsDir, old), { force: true });
-    }
+    await prune();
   }
 
   function send(res, status, body, headers = {}) {
@@ -220,7 +250,7 @@ export function createApi({ dataDir }) {
       if (resource === 'backups' && isRead) {
         await fs.mkdir(backupsDir, { recursive: true });
         if (!param) {
-          const names = (await fs.readdir(backupsDir)).filter((n) => n.endsWith('.json')).sort().reverse();
+          const names = (await fs.readdir(backupsDir)).filter((n) => BACKUP_NAME.test(n)).sort().reverse();
           const list = await Promise.all(
             names.map(async (n) => {
               const st = await fs.stat(path.join(backupsDir, n));
@@ -230,7 +260,7 @@ export function createApi({ dataDir }) {
           send(res, 200, list);
           return true;
         }
-        if (!/^pokekanban-[\d-]+\.json$/.test(param)) {
+        if (!BACKUP_NAME.test(param)) {
           send(res, 404, { error: 'No encontrado' });
           return true;
         }

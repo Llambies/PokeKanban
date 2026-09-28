@@ -80,17 +80,27 @@ export function syncParents(items: ChecklistItem[]): void {
   }
 }
 
-export function canIndent(items: ChecklistItem[], id: string): boolean {
+export type Visible = (item: ChecklistItem) => boolean;
+
+/** Index of the nearest sibling in `direction` that passes `visible` (all pass by default). */
+function neighbour(siblings: ChecklistItem[], index: number, direction: 1 | -1, visible?: Visible): number {
+  for (let i = index + direction; i >= 0 && i < siblings.length; i += direction) {
+    if (!visible || visible(siblings[i])) return i;
+  }
+  return -1;
+}
+
+export function canIndent(items: ChecklistItem[], id: string, visible?: Visible): boolean {
   const loc = locate(items, id);
-  if (!loc || loc.index === 0) return false;
+  if (!loc || neighbour(loc.siblings, loc.index, -1, visible) < 0) return false;
   return loc.depth + 1 + height(loc.item) <= MAX_LEVELS;
 }
 
-/** Moves the item into its previous sibling (as last child). */
-export function indent(items: ChecklistItem[], id: string): boolean {
-  if (!canIndent(items, id)) return false;
+/** Moves the item into its previous (visible) sibling, as last child. */
+export function indent(items: ChecklistItem[], id: string, visible?: Visible): boolean {
+  if (!canIndent(items, id, visible)) return false;
   const loc = locate(items, id)!;
-  const target = loc.siblings[loc.index - 1];
+  const target = loc.siblings[neighbour(loc.siblings, loc.index, -1, visible)];
   loc.siblings.splice(loc.index, 1);
   target.children.push(loc.item);
   target.collapsed = false;
@@ -114,11 +124,12 @@ export function outdent(items: ChecklistItem[], id: string): boolean {
   return true;
 }
 
-export function moveSibling(items: ChecklistItem[], id: string, delta: number): boolean {
+/** Swaps the item with its next (visible) sibling in the given direction. */
+export function moveSibling(items: ChecklistItem[], id: string, delta: number, visible?: Visible): boolean {
   const loc = locate(items, id);
   if (!loc) return false;
-  const to = loc.index + delta;
-  if (to < 0 || to >= loc.siblings.length) return false;
+  const to = neighbour(loc.siblings, loc.index, delta < 0 ? -1 : 1, visible);
+  if (to < 0) return false;
   loc.siblings.splice(loc.index, 1);
   loc.siblings.splice(to, 0, loc.item);
   return true;

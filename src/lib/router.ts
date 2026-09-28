@@ -73,8 +73,11 @@ export function navigate(route: Partial<Route>, replace = false): void {
 
 export function openCard(cardId: string, boardId?: string): void {
   const route = getRoute();
+  const target = { boardId: boardId ?? route.boardId, view: route.view, cardId };
+  // Only remember that we pushed a history entry if we really do (closing uses history.back()).
+  if (buildHash(target) === window.location.hash) return;
   cardOpenedInApp = true;
-  navigate({ boardId: boardId ?? route.boardId, view: route.view, cardId });
+  navigate(target);
 }
 
 export function closeCard(): void {

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { produce, type Draft } from 'immer';
+import { current, original, produce, type Draft } from 'immer';
 import type {
   AppData, Attachment, Board, Card, CardCover, Checklist, ChecklistItem, CustomField, CustomFieldValue, Label, List, Priority,
 } from '../types';
@@ -73,7 +73,8 @@ function withCard(d: D, cardId: string, fn: (card: Draft<Card>) => void): void {
   const card = d.cards[cardId];
   if (!card) return;
   fn(card);
-  touch(card);
+  // Only real changes bump updatedAt, so no-op edits don't create undo steps or saves.
+  if (current(card) !== original(card)) touch(card);
 }
 
 function withChecklist(d: D, cardId: string, clId: string, fn: (cl: Draft<Checklist>, card: Draft<Card>) => void): void {
@@ -98,7 +99,7 @@ function remapLabels(d: D, fromBoardId: string, toBoardId: string, labelIds: str
       target = { ...label, id: uid() };
       dst.push(target);
     }
-    result.push(target.id);
+    if (!result.includes(target.id)) result.push(target.id);
   }
   return result;
 }
@@ -617,6 +618,8 @@ export function moveCard(cardId: string, toListId: string, toIndex: number): voi
     removeFromList(d, card);
     rehome(d, card, target.boardId);
     card.listId = toListId;
+    // Moving an archived card (e.g. from its modal) brings it back to the board.
+    card.archived = false;
     target.cardIds.splice(Math.max(0, Math.min(toIndex, target.cardIds.length)), 0, cardId);
     touch(card);
   });
@@ -648,7 +651,7 @@ export function restoreCard(cardId: string): void {
         }
         card.listId = list.id;
       }
-      list.cardIds.push(card.id);
+      if (!list.cardIds.includes(card.id)) list.cardIds.push(card.id);
     }),
   );
 }
@@ -794,10 +797,15 @@ export function deleteChecklistItem(cardId: string, clId: string, itemId: string
   );
 }
 
+/** With "hide done" on, keyboard moves must only consider the items the user can see. */
+function visibility(cl: Checklist): ((item: ChecklistItem) => boolean) | undefined {
+  return cl.hideDone ? (item) => !item.done : undefined;
+}
+
 export function indentChecklistItem(cardId: string, clId: string, itemId: string): void {
   mutate((d) =>
     withChecklist(d, cardId, clId, (cl) => {
-      if (tree.indent(cl.items, itemId)) tree.syncParents(cl.items);
+      if (tree.indent(cl.items, itemId, visibility(cl))) tree.syncParents(cl.items);
     }),
   );
 }
@@ -811,7 +819,7 @@ export function outdentChecklistItem(cardId: string, clId: string, itemId: strin
 }
 
 export function moveChecklistItemSibling(cardId: string, clId: string, itemId: string, delta: number): void {
-  mutate((d) => withChecklist(d, cardId, clId, (cl) => void tree.moveSibling(cl.items, itemId, delta)));
+  mutate((d) => withChecklist(d, cardId, clId, (cl) => void tree.moveSibling(cl.items, itemId, delta, visibility(cl))));
 }
 
 export interface ItemSlot {

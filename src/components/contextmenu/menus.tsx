@@ -36,8 +36,16 @@ function PriorityFlag({ color }: { color: string }) {
   return <Flag size={ICON} color={color} fill={color} />;
 }
 
+/** Toast whose "Deshacer" only undoes this action (if nothing else changed since). */
 export function undoToast(text: string): void {
-  toast(text, { actionText: 'Deshacer', action: () => S.undo() });
+  const after = S.useStore.getState().data;
+  toast(text, {
+    actionText: 'Deshacer',
+    action: () => {
+      if (S.useStore.getState().data === after) S.undo();
+      else toast('Ha habido más cambios desde entonces: usa Ctrl+Z para deshacer paso a paso.');
+    },
+  });
 }
 
 /* ------------------------------------------------------------ submenus */
@@ -667,7 +675,7 @@ export function checklistItemMenu(ctx: ChecklistItemMenuCtx): MenuItem[] {
     { label: 'Añadir subtarea', icon: <ListTree size={ICON} />, disabled: loc.depth + 1 >= tree.MAX_LEVELS, onSelect: ctx.onAddChild },
     { label: 'Añadir tarea debajo', icon: <Plus size={ICON} />, onSelect: ctx.onAddBelow },
     SEP,
-    { label: 'Aumentar sangría', icon: <IndentIncrease size={ICON} />, hint: 'Tab', disabled: !tree.canIndent(cl.items, itemId), onSelect: () => S.indentChecklistItem(cardId, clId, itemId) },
+    { label: 'Aumentar sangría', icon: <IndentIncrease size={ICON} />, hint: 'Tab', disabled: !tree.canIndent(cl.items, itemId, cl.hideDone ? (i) => !i.done : undefined), onSelect: () => S.indentChecklistItem(cardId, clId, itemId) },
     { label: 'Reducir sangría', icon: <IndentDecrease size={ICON} />, hint: 'Mayús+Tab', disabled: !tree.canOutdent(cl.items, itemId), onSelect: () => S.outdentChecklistItem(cardId, clId, itemId) },
     { label: 'Subir', icon: <ArrowUp size={ICON} />, hint: 'Alt+↑', disabled: loc.index === 0, onSelect: () => S.moveChecklistItemSibling(cardId, clId, itemId, -1) },
     { label: 'Bajar', icon: <ArrowDown size={ICON} />, hint: 'Alt+↓', disabled: loc.index === loc.siblings.length - 1, onSelect: () => S.moveChecklistItemSibling(cardId, clId, itemId, 1) },

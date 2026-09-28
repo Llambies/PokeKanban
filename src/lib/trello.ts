@@ -44,6 +44,12 @@ function mapDate(value: unknown): string | null {
 
 const byPos = (a: Raw, b: Raw) => (Number(a.pos) || 0) - (Number(b.pos) || 0);
 
+/** Trello ids are MongoDB ObjectIds: the first 8 hex chars are the creation time in seconds. */
+function objectIdTime(id: unknown): number | null {
+  if (typeof id !== 'string' || !/^[0-9a-f]{24}$/i.test(id)) return null;
+  return parseInt(id.slice(0, 8), 16) * 1000;
+}
+
 export function convertTrello(json: Raw): BoardPayload {
   const now = Date.now();
   const boardId = uid();
@@ -190,7 +196,7 @@ export function convertTrello(json: Raw): BoardPayload {
       fields: fieldValues(c.customFieldItems),
       isTemplate: !!c.isTemplate,
       archived: !!c.closed,
-      createdAt: Date.parse(c.dateLastActivity) || now,
+      createdAt: objectIdTime(c.id) ?? (Date.parse(c.dateLastActivity) || now),
       updatedAt: Date.parse(c.dateLastActivity) || now,
     };
     cards.push(card);

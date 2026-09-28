@@ -188,4 +188,63 @@ describe('store', () => {
     const copied = data.cards[data.lists[data.boards[copyId].listIds[0]].cardIds[0]];
     expect(copied.fields[copyField.id]).toBe('yo');
   });
+
+  it('no-op edits do not create undo steps', () => {
+    const { todo } = board();
+    const card = S.createCard(todo, 'A');
+    const cl = S.addChecklist(card, 'Pasos');
+    const before = S.useStore.getState().past.length;
+    S.updateChecklist(card, cl, { title: 'Pasos' });
+    S.updateCard(card, { title: 'A' });
+    const first = S.addChecklistItem(card, cl, 'uno');
+    const afterAdd = S.useStore.getState().past.length;
+    S.indentChecklistItem(card, cl, first); // first item cannot be indented
+    expect(S.useStore.getState().past.length).toBe(afterAdd);
+    expect(afterAdd).toBe(before + 1);
+  });
+
+  it('moving an archived card brings it back once', () => {
+    const { todo, doing } = board();
+    const card = S.createCard(todo, 'A');
+    S.archiveCard(card);
+    S.moveCard(card, doing, 0);
+    expect(S.getData().cards[card].archived).toBe(false);
+    S.restoreCard(card);
+    expect(S.getData().lists[doing].cardIds).toEqual([card]);
+  });
+
+  it('does not duplicate labels when two labels map to the same target', () => {
+    const one = board();
+    const two = board();
+    const a = S.createLabel(one.boardId, { name: 'Dup', color: 'red', icon: null });
+    const b = S.createLabel(one.boardId, { name: 'Dup', color: 'red', icon: null });
+    const card = S.createCard(one.todo, 'X');
+    S.toggleLabel(card, a);
+    S.toggleLabel(card, b);
+    S.moveCard(card, two.todo, 0);
+    const labels = S.getData().cards[card].labelIds;
+    expect(new Set(labels).size).toBe(labels.length);
+    expect(labels).toHaveLength(1);
+  });
+
+  it('keyboard moves skip completed items when they are hidden', () => {
+    const { todo } = board();
+    const card = S.createCard(todo, 'X');
+    const cl = S.addChecklist(card, 'L');
+    const one = S.addChecklistItem(card, cl, 'one');
+    const two = S.addChecklistItem(card, cl, 'two', { afterId: one });
+    const three = S.addChecklistItem(card, cl, 'three', { afterId: two });
+    S.toggleChecklistItem(card, cl, two, true);
+    S.updateChecklist(card, cl, { hideDone: true });
+    S.indentChecklistItem(card, cl, three);
+    let items = S.getData().cards[card].checklists[0].items;
+    expect(items.map((i) => i.text)).toEqual(['one', 'two']);
+    expect(items[0].children.map((i) => i.text)).toEqual(['three']);
+    expect(items[1].done).toBe(true);
+
+    S.outdentChecklistItem(card, cl, three);
+    S.moveChecklistItemSibling(card, cl, three, -1); // jumps over the hidden "two"
+    items = S.getData().cards[card].checklists[0].items;
+    expect(items.map((i) => i.text)).toEqual(['three', 'one', 'two']);
+  });
 });

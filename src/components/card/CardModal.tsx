@@ -131,8 +131,10 @@ export function CardModal({ cardId }: { cardId: string }) {
   const cardLabels = (labels ?? []).filter((l) => card.labelIds.includes(l.id));
   const isSeparator = card.kind === 'separator';
 
-  const SideButton = ({ k, icon, text }: { k: PopKey; icon: React.ReactNode; text: string }) => (
-    <button type="button" className={`side-btn ${pop.openKey === k ? 'is-active' : ''}`} onClick={(e) => openPop(k, e.currentTarget)}>
+  // A render helper, not a component: a component defined here would remount on every render
+  // and detach the element the popover is anchored to.
+  const sideButton = (k: PopKey, icon: React.ReactNode, text: string) => (
+    <button key={k} type="button" className={`side-btn ${pop.openKey === k ? 'is-active' : ''}`} onClick={(e) => openPop(k, e.currentTarget)}>
       {icon} {text}
     </button>
   );
@@ -260,18 +262,18 @@ export function CardModal({ cardId }: { cardId: string }) {
         <aside className="card-modal__sidebar">
           <div className="side-group">
             <div className="side-group__title">Añadir a la tarjeta</div>
-            <SideButton k="labels" icon={<Tag size={16} />} text="Etiquetas" />
-            {!isSeparator && <SideButton k="checklist" icon={<CheckSquare size={16} />} text="Checklist" />}
-            {!isSeparator && <SideButton k="dates" icon={<Clock size={16} />} text="Fechas" />}
-            {!isSeparator && <SideButton k="priority" icon={<Flag size={16} />} text="Prioridad" />}
-            <SideButton k="cover" icon={<PanelTop size={16} />} text={isSeparator ? 'Color' : 'Portada'} />
-            {!isSeparator && <SideButton k="attachment" icon={<Paperclip size={16} />} text="Adjunto" />}
-            {!isSeparator && <SideButton k="fields" icon={<SlidersHorizontal size={16} />} text="Campos" />}
+            {sideButton('labels', <Tag size={16} />, 'Etiquetas')}
+            {!isSeparator && sideButton('checklist', <CheckSquare size={16} />, 'Checklist')}
+            {!isSeparator && sideButton('dates', <Clock size={16} />, 'Fechas')}
+            {!isSeparator && sideButton('priority', <Flag size={16} />, 'Prioridad')}
+            {sideButton('cover', <PanelTop size={16} />, isSeparator ? 'Color' : 'Portada')}
+            {!isSeparator && sideButton('attachment', <Paperclip size={16} />, 'Adjunto')}
+            {!isSeparator && sideButton('fields', <SlidersHorizontal size={16} />, 'Campos')}
           </div>
           <div className="side-group">
             <div className="side-group__title">Acciones</div>
-            <SideButton k="move" icon={<ArrowRightLeft size={16} />} text="Mover" />
-            <SideButton k="copy" icon={<Copy size={16} />} text="Copiar" />
+            {sideButton('move', <ArrowRightLeft size={16} />, 'Mover')}
+            {sideButton('copy', <Copy size={16} />, 'Copiar')}
             <button
               type="button"
               className="side-btn"
