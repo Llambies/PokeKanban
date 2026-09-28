@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
-  Archive, ArrowRightLeft, CheckSquare, Clock, Copy, CreditCard, Flag, LayoutTemplate, Link, Link2, PanelTop, Plus,
-  RotateCcw, SeparatorHorizontal, Tag, Trash2, X,
+  Archive, ArrowRightLeft, CheckSquare, Clock, Copy, CreditCard, Flag, LayoutTemplate, Link, Paperclip, PanelTop, Plus,
+  RotateCcw, SeparatorHorizontal, SlidersHorizontal, Tag, Trash2, X,
 } from 'lucide-react';
 import type { Card } from '../../types';
 import * as S from '../../store/store';
@@ -12,16 +12,20 @@ import { getColor } from '../../lib/colors';
 import { DUE_STATUS_TEXT, dueStatus, formatDate } from '../../lib/dates';
 import { getPriority } from '../../lib/priority';
 import { copyToClipboard } from '../../lib/download';
+import { uploadFile } from '../../lib/upload';
+import { usePersist } from '../../store/persistence';
 import { Modal } from '../common/Modal';
 import { Popover, usePopover } from '../common/Popover';
 import { LabelChip } from '../common/LabelChip';
 import { InlineTitleEditor } from '../common/AutoTextarea';
 import { deleteCardWithConfirm, undoToast } from '../contextmenu/menus';
 import { Checklists } from './Checklists';
+import { CustomFieldsSection } from './CustomFields';
+import { FieldsManager } from '../board/FieldsManager';
 import { Attachments, AttachmentForm, Comments, Description } from './CardSections';
 import { AddChecklistForm, CoverPicker, DatesPicker, LabelPicker, MoveCopyPicker, PriorityPicker } from './pickers';
 
-type PopKey = 'labels' | 'dates' | 'cover' | 'priority' | 'move' | 'copy' | 'checklist' | 'attachment';
+type PopKey = 'labels' | 'dates' | 'cover' | 'priority' | 'move' | 'copy' | 'checklist' | 'attachment' | 'fields';
 
 const POP_TITLES: Record<PopKey, string> = {
   labels: 'Etiquetas',
@@ -31,7 +35,8 @@ const POP_TITLES: Record<PopKey, string> = {
   move: 'Mover tarjeta',
   copy: 'Copiar tarjeta',
   checklist: 'Añadir checklist',
-  attachment: 'Añadir enlace',
+  attachment: 'Adjuntar',
+  fields: 'Campos personalizados',
 };
 
 function CardHeader({ card }: { card: Card }) {
@@ -73,6 +78,8 @@ export function CardModal({ cardId }: { cardId: string }) {
   const pop = usePopover<PopKey>();
   const [popTitle, setPopTitle] = useState<{ title: string; back?: () => void } | null>(null);
   const [focusChecklist, setFocusChecklist] = useState<string | null>(null);
+  const [dropping, setDropping] = useState(false);
+  const uploads = usePersist((s) => s.mode === 'server');
 
   if (!card) {
     return (
@@ -97,6 +104,26 @@ export function CardModal({ cardId }: { cardId: string }) {
     pop.close();
   };
 
+  const attachFiles = async (files: File[]) => {
+    if (!uploads) {
+      toast('Subir archivos requiere el servidor (npm start). En modo navegador usa enlaces.');
+      return;
+    }
+    for (const file of files) {
+      toast(`Subiendo "${file.name || 'imagen'}"…`, { duration: 1500 });
+      try {
+        const up = await uploadFile(file);
+        const current = S.getData().cards[cardId];
+        const image = up.type.startsWith('image/');
+        // Like Trello: the first image becomes the cover if the card has none.
+        const cover = image && current && !current.cover ? { color: null, image: up.url, size: 'strip' as const } : undefined;
+        S.addAttachment(cardId, up.name, up.url, { kind: 'file', size: up.size, mime: up.type }, cover);
+      } catch (err) {
+        toast(err instanceof Error ? err.message : 'No se pudo subir el archivo');
+      }
+    }
+  };
+
   const cover = card.cover;
   const coverColor = getColor(cover?.color);
   const status = dueStatus(card.due, card.dueDone);
@@ -112,6 +139,34 @@ export function CardModal({ cardId }: { cardId: string }) {
 
   return (
     <Modal onClose={closeCard} className="card-modal" labelledBy="card-title">
+      <div
+        className="card-modal__dropzone"
+        onPaste={(e) => {
+          const files = [...e.clipboardData.files];
+          if (files.length === 0) return;
+          e.preventDefault();
+          void attachFiles(files);
+        }}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes('Files')) return;
+          e.preventDefault();
+          setDropping(true);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropping(false);
+        }}
+        onDrop={(e) => {
+          if (!e.dataTransfer.files.length) return;
+          e.preventDefault();
+          setDropping(false);
+          void attachFiles([...e.dataTransfer.files]);
+        }}
+      >
+      {dropping && (
+        <div className="card-modal__drop-overlay">
+          <Paperclip size={28} /> Suelta para adjuntar
+        </div>
+      )}
       {cover && (coverColor || cover.image) && (
         <div
           className={`card-modal__cover ${cover.image ? 'has-image' : ''}`}
@@ -184,6 +239,7 @@ export function CardModal({ cardId }: { cardId: string }) {
             )}
           </div>
 
+          {!isSeparator && <CustomFieldsSection card={card} onManage={(el) => openPop('fields', el)} />}
           {!isSeparator && <Description card={card} />}
           {!isSeparator && (
             <Checklists
@@ -209,7 +265,8 @@ export function CardModal({ cardId }: { cardId: string }) {
             {!isSeparator && <SideButton k="dates" icon={<Clock size={16} />} text="Fechas" />}
             {!isSeparator && <SideButton k="priority" icon={<Flag size={16} />} text="Prioridad" />}
             <SideButton k="cover" icon={<PanelTop size={16} />} text={isSeparator ? 'Color' : 'Portada'} />
-            {!isSeparator && <SideButton k="attachment" icon={<Link2 size={16} />} text="Enlace" />}
+            {!isSeparator && <SideButton k="attachment" icon={<Paperclip size={16} />} text="Adjunto" />}
+            {!isSeparator && <SideButton k="fields" icon={<SlidersHorizontal size={16} />} text="Campos" />}
           </div>
           <div className="side-group">
             <div className="side-group__title">Acciones</div>
@@ -276,10 +333,11 @@ export function CardModal({ cardId }: { cardId: string }) {
           onClose={closePop}
           title={popTitle?.title ?? POP_TITLES[pop.openKey]}
           onBack={popTitle?.back}
-          width={pop.openKey === 'labels' ? 320 : 304}
+          width={pop.openKey === 'labels' || pop.openKey === 'fields' ? 320 : 304}
         >
           {pop.openKey === 'labels' && <LabelPicker card={card} onTitle={(title, back) => setPopTitle({ title, back })} />}
           {pop.openKey === 'dates' && <DatesPicker card={card} onDone={closePop} />}
+          {pop.openKey === 'fields' && <FieldsManager boardId={card.boardId} />}
           {pop.openKey === 'cover' && <CoverPicker card={card} />}
           {pop.openKey === 'priority' && <PriorityPicker card={card} onDone={closePop} />}
           {pop.openKey === 'move' && <MoveCopyPicker card={card} mode="move" onDone={closePop} />}
@@ -296,13 +354,22 @@ export function CardModal({ cardId }: { cardId: string }) {
           {pop.openKey === 'attachment' && (
             <AttachmentForm
               onSubmit={(name, url) => {
-                S.addAttachment(card.id, name, url);
+                S.addAttachment(card.id, name, url, { kind: 'link' });
                 closePop();
               }}
+              onFiles={
+                uploads
+                  ? (files) => {
+                      closePop();
+                      void attachFiles(files);
+                    }
+                  : undefined
+              }
             />
           )}
         </Popover>
       )}
+      </div>
     </Modal>
   );
 }

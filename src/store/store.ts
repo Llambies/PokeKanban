@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import { produce, type Draft } from 'immer';
 import type {
-  AppData, Board, Card, CardCover, Checklist, ChecklistItem, Label, List, Priority,
+  AppData, Attachment, Board, Card, CardCover, Checklist, ChecklistItem, CustomField, CustomFieldValue, Label, List, Priority,
 } from '../types';
 import { uid } from '../lib/id';
 import { moveInArray } from '../lib/order';
 import { parseLocal } from '../lib/dates';
 import * as tree from '../lib/checklist';
 import { emptyData, makeBoard, makeCard, makeList } from './factories';
+import { validFieldValue } from './normalize';
 
 const HISTORY_LIMIT = 100;
 
@@ -102,6 +103,76 @@ function remapLabels(d: D, fromBoardId: string, toBoardId: string, labelIds: str
   return result;
 }
 
+type FieldValues = Record<string, CustomFieldValue>;
+
+/** Clones field definitions with fresh ids; `mapValues` translates card values to the clones. */
+function cloneFields(fields: CustomField[]): { fields: CustomField[]; mapValues: (values: FieldValues) => FieldValues } {
+  const fieldMap = new Map<string, CustomField>();
+  const optionMap = new Map<string, string>();
+  const cloned = fields.map((f) => {
+    const copy: CustomField = {
+      ...f,
+      id: uid(),
+      options: f.options.map((o) => {
+        const id = uid();
+        optionMap.set(o.id, id);
+        return { ...o, id };
+      }),
+    };
+    fieldMap.set(f.id, copy);
+    return copy;
+  });
+  const mapValues = (values: FieldValues) => {
+    const out: FieldValues = {};
+    for (const [id, value] of Object.entries(values)) {
+      const target = fieldMap.get(id);
+      if (!target) continue;
+      out[target.id] = target.type === 'select' ? optionMap.get(value as string) ?? '' : value;
+      if (out[target.id] === '') delete out[target.id];
+    }
+    return out;
+  };
+  return { fields: cloned, mapValues };
+}
+
+/** Maps custom field values onto another board (fields matched by name + type, created if missing). */
+function remapFields(d: D, fromBoardId: string, toBoardId: string, values: FieldValues): FieldValues {
+  if (fromBoardId === toBoardId) return { ...values };
+  const src = d.boards[fromBoardId]?.fields ?? [];
+  const dst = d.boards[toBoardId]?.fields;
+  if (!dst) return {};
+  const out: FieldValues = {};
+  for (const [id, value] of Object.entries(values)) {
+    const field = src.find((f) => f.id === id);
+    if (!field) continue;
+    let target = dst.find((f) => f.name === field.name && f.type === field.type);
+    if (!target) {
+      target = { ...field, id: uid(), options: field.options.map((o) => ({ ...o, id: uid() })) };
+      dst.push(target);
+    }
+    if (field.type === 'select') {
+      const option = field.options.find((o) => o.id === value);
+      let targetOption = option && target.options.find((o) => o.name === option.name);
+      if (option && !targetOption) {
+        targetOption = { ...option, id: uid() };
+        target.options.push(targetOption);
+      }
+      if (targetOption) out[target.id] = targetOption.id;
+    } else {
+      out[target.id] = value;
+    }
+  }
+  return out;
+}
+
+/** Moves a card's board-scoped data (labels, custom fields) to another board. */
+function rehome(d: D, card: Draft<Card>, toBoardId: string): void {
+  if (card.boardId === toBoardId) return;
+  card.labelIds = remapLabels(d, card.boardId, toBoardId, card.labelIds);
+  card.fields = remapFields(d, card.boardId, toBoardId, card.fields);
+  card.boardId = toBoardId;
+}
+
 function removeFromList(d: D, card: Draft<Card>): void {
   const list = d.lists[card.listId];
   if (list) list.cardIds = list.cardIds.filter((id) => id !== card.id);
@@ -121,6 +192,7 @@ function cloneCardData(card: Card, opts: CopyCardOptions): Partial<Card> {
     checklists: opts.keepChecklists === false ? [] : card.checklists.map((cl) => tree.cloneChecklist(cl, opts.resetChecklists)),
     attachments: opts.keepAttachments === false ? [] : card.attachments.map((a) => ({ ...a, id: uid() })),
     comments: opts.keepComments ? card.comments.map((c) => ({ ...c, id: uid() })) : [],
+    fields: { ...card.fields },
   };
 }
 
@@ -176,8 +248,10 @@ export function duplicateBoard(boardId: string): string | null {
       return { ...l, id };
     });
     const now = Date.now();
+    const cloned = cloneFields(src.fields);
     const board: Board = {
-      ...src, id: newId, title: `${src.title} (copia)`, starred: false, listIds: [], labels, createdAt: now, updatedAt: now,
+      ...src, id: newId, title: `${src.title} (copia)`, starred: false, listIds: [], labels, fields: cloned.fields,
+      createdAt: now, updatedAt: now,
     };
     d.boards[newId] = board;
     const idx = d.boardOrder.indexOf(boardId);
@@ -191,6 +265,7 @@ export function duplicateBoard(boardId: string): string | null {
           ...cloneCardData(card, { keepComments: true }),
           isTemplate: card.isTemplate,
           labelIds: card.labelIds.map((id) => labelMap.get(id)!).filter(Boolean),
+          fields: cloned.mapValues(card.fields),
         });
         d.cards[copy.id] = copy;
         newList.cardIds.push(copy.id);
@@ -208,10 +283,12 @@ export function importBoard(payload: { board: Board; lists: List[]; cards: Card[
   mutate((d) => {
     const labelMap = new Map<string, string>();
     const listMap = new Map<string, string>();
+    const cloned = cloneFields(payload.board.fields ?? []);
     const board: Board = {
       ...payload.board,
       id: boardId,
       listIds: [],
+      fields: cloned.fields,
       labels: payload.board.labels.map((l) => {
         const id = uid();
         labelMap.set(l.id, id);
@@ -239,6 +316,7 @@ export function importBoard(payload: { board: Board; lists: List[]; cards: Card[
         boardId,
         listId,
         labelIds: card.labelIds.map((l) => labelMap.get(l)!).filter(Boolean),
+        fields: cloned.mapValues(card.fields ?? {}),
       };
     }
     for (const list of payload.lists) {
@@ -286,6 +364,59 @@ export function moveLabel(boardId: string, from: number, to: number): void {
     const board = d.boards[boardId];
     if (board) moveInArray(board.labels, from, to);
   });
+}
+
+/* ------------------------------------------------------------ custom fields */
+
+export function createField(boardId: string, field: Omit<CustomField, 'id'>): string {
+  const id = uid();
+  mutate((d) => {
+    d.boards[boardId]?.fields.push({ ...field, id });
+  });
+  return id;
+}
+
+export function updateField(boardId: string, fieldId: string, patch: Partial<Omit<CustomField, 'id'>>): void {
+  mutate((d) => {
+    const field = d.boards[boardId]?.fields.find((f) => f.id === fieldId);
+    if (!field) return;
+    Object.assign(field, patch);
+    // Drop values that no longer fit (type changed, option removed…).
+    for (const card of Object.values(d.cards)) {
+      if (card.boardId !== boardId || !(fieldId in card.fields)) continue;
+      if (validFieldValue(field, card.fields[fieldId]) === undefined) delete card.fields[fieldId];
+    }
+  });
+}
+
+export function deleteField(boardId: string, fieldId: string): void {
+  mutate((d) => {
+    const board = d.boards[boardId];
+    if (!board) return;
+    board.fields = board.fields.filter((f) => f.id !== fieldId);
+    for (const card of Object.values(d.cards)) {
+      if (card.boardId === boardId && fieldId in card.fields) delete card.fields[fieldId];
+    }
+  });
+}
+
+export function moveField(boardId: string, from: number, to: number): void {
+  mutate((d) => {
+    const board = d.boards[boardId];
+    if (board) moveInArray(board.fields, from, to);
+  });
+}
+
+/** Sets (or clears with null / empty) a custom field value on a card. */
+export function setCardField(cardId: string, fieldId: string, value: CustomFieldValue | null): void {
+  mutate((d) =>
+    withCard(d, cardId, (card) => {
+      const field = d.boards[card.boardId]?.fields.find((f) => f.id === fieldId);
+      const valid = field && value !== null ? validFieldValue(field, value) : undefined;
+      if (valid === undefined) delete card.fields[fieldId];
+      else card.fields[fieldId] = valid;
+    }),
+  );
 }
 
 /* -------------------------------------------------------------------- lists */
@@ -399,10 +530,7 @@ export function moveAllCards(fromListId: string, toListId: string): void {
     if (!from || !to) return;
     for (const id of from.cardIds) {
       const card = d.cards[id];
-      if (to.boardId !== from.boardId) {
-        card.labelIds = remapLabels(d, from.boardId, to.boardId, card.labelIds);
-        card.boardId = to.boardId;
-      }
+      rehome(d, card, to.boardId);
       card.listId = toListId;
       to.cardIds.push(id);
     }
@@ -428,8 +556,7 @@ export function moveListToBoard(listId: string, boardId: string): void {
     source.listIds = source.listIds.filter((id) => id !== listId);
     for (const card of Object.values(d.cards)) {
       if (card.listId !== listId) continue;
-      card.labelIds = remapLabels(d, list.boardId, boardId, card.labelIds);
-      card.boardId = boardId;
+      rehome(d, card, boardId);
     }
     list.boardId = boardId;
     if (!list.archived) target.listIds.push(listId);
@@ -488,10 +615,7 @@ export function moveCard(cardId: string, toListId: string, toIndex: number): voi
     const target = d.lists[toListId];
     if (!card || !target) return;
     removeFromList(d, card);
-    if (card.boardId !== target.boardId) {
-      card.labelIds = remapLabels(d, card.boardId, target.boardId, card.labelIds);
-      card.boardId = target.boardId;
-    }
+    rehome(d, card, target.boardId);
     card.listId = toListId;
     target.cardIds.splice(Math.max(0, Math.min(toIndex, target.cardIds.length)), 0, cardId);
     touch(card);
@@ -557,6 +681,7 @@ export function copyCard(cardId: string, toListId?: string, toIndex?: number, op
   const copy = makeCard(list.boardId, listId, src.title, cloneCardData(src, opts));
   mutate((d) => {
     copy.labelIds = remapLabels(d, src.boardId, list.boardId, copy.labelIds);
+    copy.fields = remapFields(d, src.boardId, list.boardId, copy.fields);
     d.cards[copy.id] = copy;
     const target = d.lists[listId];
     const index = toIndex ?? (listId === src.listId ? target.cardIds.indexOf(cardId) + 1 : target.cardIds.length);
@@ -746,12 +871,21 @@ export function convertItemToCard(cardId: string, clId: string, itemId: string):
 
 /* ------------------------------------------------------ attachments / notes */
 
-export function addAttachment(cardId: string, name: string, url: string): void {
+export function addAttachment(
+  cardId: string,
+  name: string,
+  url: string,
+  extra: Pick<Attachment, 'kind' | 'size' | 'mime'> = {},
+  cover?: CardCover,
+): string {
+  const id = uid();
   mutate((d) =>
     withCard(d, cardId, (card) => {
-      card.attachments.push({ id: uid(), name: name.trim(), url: url.trim(), createdAt: Date.now() });
+      card.attachments.push({ id, name: name.trim(), url: url.trim(), createdAt: Date.now(), ...extra });
+      if (cover) card.cover = cover;
     }),
   );
+  return id;
 }
 
 export function updateAttachment(cardId: string, attId: string, patch: { name?: string; url?: string }): void {
@@ -764,7 +898,14 @@ export function updateAttachment(cardId: string, attId: string, patch: { name?: 
 }
 
 export function deleteAttachment(cardId: string, attId: string): void {
-  mutate((d) => withCard(d, cardId, (card) => void (card.attachments = card.attachments.filter((a) => a.id !== attId))));
+  mutate((d) =>
+    withCard(d, cardId, (card) => {
+      const att = card.attachments.find((a) => a.id === attId);
+      card.attachments = card.attachments.filter((a) => a.id !== attId);
+      // An image used as cover goes away with its attachment.
+      if (att && card.cover?.image === att.url) card.cover = card.cover.color ? { ...card.cover, image: null } : null;
+    }),
+  );
 }
 
 export function addComment(cardId: string, text: string): void {

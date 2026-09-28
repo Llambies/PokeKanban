@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { AlignLeft, CheckSquare, Clock, Flag, LayoutTemplate, MessageSquare, MoreHorizontal, Paperclip } from 'lucide-react';
-import type { Card } from '../../types';
+import type { Card, CustomField } from '../../types';
 import { useCard } from '../../store/hooks';
 import { updateCard, useStore } from '../../store/store';
 import { usePrefs, useUI } from '../../store/ui';
@@ -10,6 +10,7 @@ import { getColor } from '../../lib/colors';
 import { dueStatus, formatDate, DUE_STATUS_TEXT } from '../../lib/dates';
 import { checklistsProgress } from '../../lib/checklist';
 import { getPriority } from '../../lib/priority';
+import { formatFieldValue } from '../../lib/fields';
 import { clearHoveredCard, setHoveredCard } from '../../lib/hover';
 import { openContextMenu, openMenuAt, wantsNativeMenu } from '../contextmenu/menuStore';
 import { cardMenu } from '../contextmenu/menus';
@@ -32,13 +33,41 @@ function CardLabels({ card }: { card: Card }) {
   );
 }
 
+const NO_FIELDS: CustomField[] = [];
+
+function FieldBadges({ card }: { card: Card }) {
+  const fields = useStore((s) => s.data.boards[card.boardId]?.fields ?? NO_FIELDS);
+  return (
+    <>
+      {fields.map((field) => {
+        if (!field.showOnCard) return null;
+        const text = formatFieldValue(field, card.fields[field.id]);
+        if (!text) return null;
+        if (field.type === 'select') {
+          const color = getColor(field.options.find((o) => o.id === card.fields[field.id])?.color);
+          return (
+            <span key={field.id} className="badge badge--field badge--option" style={color ? { background: color.bg, color: color.fg } : undefined} title={field.name}>
+              {text}
+            </span>
+          );
+        }
+        return (
+          <span key={field.id} className="badge badge--field" title={field.name}>
+            {field.type === 'checkbox' ? <CheckSquare size={13} /> : <span className="badge__key">{field.name}:</span>} {text}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 function CardBadges({ card }: { card: Card }) {
   const status = dueStatus(card.due, card.dueDone);
   const progress = checklistsProgress(card.checklists);
   const priority = getPriority(card.priority);
   const hasAny =
     card.isTemplate || card.due || card.start || priority || card.description.trim() || progress.total > 0 ||
-    card.attachments.length > 0 || card.comments.length > 0;
+    card.attachments.length > 0 || card.comments.length > 0 || Object.keys(card.fields).length > 0;
   if (!hasAny) return null;
   return (
     <div className="card-tile__badges">
@@ -86,6 +115,7 @@ function CardBadges({ card }: { card: Card }) {
           <MessageSquare size={13} /> {card.comments.length}
         </span>
       )}
+      <FieldBadges card={card} />
     </div>
   );
 }

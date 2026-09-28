@@ -2,7 +2,7 @@ import {
   Archive, ArrowDownToLine, ArrowRightLeft, ArrowUpToLine, CalendarDays, CalendarPlus, CheckCheck, ChevronsDownUp,
   ChevronsUpDown, Clock, Columns3, Copy, CornerDownRight, Download, Filter, Flag, FolderInput, Gauge, IndentDecrease,
   IndentIncrease, Kanban, LayoutTemplate, Link, ListPlus, ListTree, PaintBucket, PanelTop, Pencil, Plus, SeparatorHorizontal,
-  SortAsc, SquareArrowOutUpRight, Star, StarOff, Table2, Tag, Tags, Trash2, Undo2, ArrowUp, ArrowDown, CalendarX, Image,
+  SlidersHorizontal, SortAsc, SquareArrowOutUpRight, Star, StarOff, Table2, Tag, Tags, Trash2, Undo2, ArrowUp, ArrowDown, CalendarX, Image,
 } from 'lucide-react';
 import type { Card, Priority } from '../../types';
 import * as S from '../../store/store';
@@ -11,6 +11,7 @@ import { confirmDialog, openPanel, promptDialog, setPrefs, toast, usePrefs, useU
 import { cardLink, getRoute, navigate, openCard } from '../../lib/router';
 import { BOARD_BACKGROUNDS, colorName, getBoardBackground, getColor } from '../../lib/colors';
 import { PRIORITIES } from '../../lib/priority';
+import { formatFieldValue } from '../../lib/fields';
 import { addDaysKey, formatDate, moveToDay, nextWeekdayKey, todayKey } from '../../lib/dates';
 import { copyToClipboard } from '../../lib/download';
 import { exportBoard } from '../../lib/backup';
@@ -166,6 +167,47 @@ function prioritySubmenu(card: Card): MenuItem[] {
   ];
 }
 
+function fieldsSubmenu(card: Card): MenuItem[] {
+  const fields = getData().boards[card.boardId]?.fields ?? [];
+  const items: MenuItem[] = [];
+  for (const field of fields) {
+    const value = card.fields[field.id];
+    if (field.type === 'checkbox') {
+      items.push({
+        label: field.name,
+        checked: value === true,
+        keepOpen: true,
+        onSelect: () => S.setCardField(card.id, field.id, value === true ? null : true),
+      });
+    } else if (field.type === 'select') {
+      items.push({
+        label: field.name,
+        hint: formatFieldValue(field, value) ?? undefined,
+        submenu: () => [
+          ...field.options.map(
+            (o): MenuItem => ({
+              label: o.name,
+              icon: <ColorDot color={o.color} />,
+              checked: getData().cards[card.id]?.fields[field.id] === o.id,
+              onSelect: () => S.setCardField(card.id, field.id, o.id),
+            }),
+          ),
+          SEP,
+          { label: 'Sin valor', onSelect: () => S.setCardField(card.id, field.id, null) },
+        ],
+      });
+    } else {
+      items.push({
+        label: field.name,
+        hint: formatFieldValue(field, value) ?? '—',
+        onSelect: () => openCard(card.id, card.boardId),
+      });
+    }
+  }
+  items.push(SEP, { label: 'Gestionar campos…', icon: <SlidersHorizontal size={ICON} />, onSelect: () => openPanel('fields') });
+  return items;
+}
+
 function listsOfBoard(boardId: string) {
   const data = getData();
   return data.boards[boardId]?.listIds.map((id) => data.lists[id]).filter(Boolean) ?? [];
@@ -247,6 +289,9 @@ export function cardMenu(cardId: string): MenuItem[] {
       : [
           { label: 'Fechas', icon: <Clock size={ICON} />, hint: card.due ? formatDate(card.due) : undefined, submenu: () => datesSubmenu(getData().cards[cardId]) },
           { label: 'Prioridad', icon: <Flag size={ICON} />, hint: PRIORITIES.find((p) => p.key === card.priority)?.name, submenu: () => prioritySubmenu(getData().cards[cardId]) },
+          ...((getData().boards[card.boardId]?.fields.length ?? 0) > 0
+            ? [{ label: 'Campos', icon: <SlidersHorizontal size={ICON} />, submenu: () => fieldsSubmenu(getData().cards[cardId]) }]
+            : []),
         ]),
     SEP,
     { label: 'Mover', icon: <ArrowRightLeft size={ICON} />, submenu: () => moveSubmenu(getData().cards[cardId]) },
@@ -517,6 +562,7 @@ export function boardCanvasMenu(boardId: string): MenuItem[] {
     { label: 'Añadir lista', icon: <ListPlus size={ICON} />, onSelect: () => addListPrompt(boardId) },
     { label: 'Fondo del tablero', icon: <PaintBucket size={ICON} />, hint: getBoardBackground(board.background).name, submenu: () => backgroundSubmenu(boardId) },
     { label: 'Etiquetas…', icon: <Tag size={ICON} />, onSelect: () => openPanel('labels') },
+    { label: 'Campos personalizados…', icon: <SlidersHorizontal size={ICON} />, onSelect: () => openPanel('fields') },
     { label: 'Filtrar tarjetas…', icon: <Filter size={ICON} />, hint: 'F', onSelect: () => useUI.setState({ filterOpen: true }) },
     { label: 'Elementos archivados…', icon: <Archive size={ICON} />, onSelect: () => openPanel('archive') },
     {

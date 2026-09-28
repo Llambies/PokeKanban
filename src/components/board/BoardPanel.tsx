@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 import {
-  Archive, ChevronLeft, Copy, Download, GripVertical, Image, Pencil, Plus, RotateCcw, Tag, Trash2, X,
+  Archive, ChevronLeft, Copy, Download, GripVertical, Image, Pencil, Plus, RotateCcw, SlidersHorizontal, Tag, Trash2, X,
 } from 'lucide-react';
 import * as S from '../../store/store';
 import { useBoard } from '../../store/hooks';
@@ -17,10 +17,12 @@ import { LabelChip } from '../common/LabelChip';
 import { LabelEditor } from '../common/LabelEditor';
 import { BackgroundGrid } from '../home/CreateBoardForm';
 import { undoToast } from '../contextmenu/menus';
+import { FieldsManager } from './FieldsManager';
 
 const TITLES: Record<Exclude<PanelKind, null>, string> = {
   menu: 'Menú del tablero',
   labels: 'Etiquetas',
+  fields: 'Campos personalizados',
   archive: 'Elementos archivados',
   background: 'Fondo del tablero',
 };
@@ -219,6 +221,9 @@ function MainMenu({ boardId }: { boardId: string }) {
       <button type="button" className="menu-list__item" onClick={() => openPanel('labels')}>
         <Tag size={16} /> Etiquetas
       </button>
+      <button type="button" className="menu-list__item" onClick={() => openPanel('fields')}>
+        <SlidersHorizontal size={16} /> Campos personalizados
+      </button>
       <button type="button" className="menu-list__item" onClick={() => openPanel('archive')}>
         <Archive size={16} /> Elementos archivados
       </button>
@@ -286,6 +291,7 @@ export function BoardPanel({ boardId }: { boardId: string }) {
       <div className="side-panel__body">
         {panel === 'menu' && <MainMenu boardId={boardId} />}
         {panel === 'labels' && <LabelsManager boardId={boardId} />}
+        {panel === 'fields' && <FieldsManager boardId={boardId} />}
         {panel === 'archive' && <ArchivePanel boardId={boardId} />}
         {panel === 'background' && (
           <>

@@ -664,7 +664,7 @@
   text-decoration: underline;
 }
 
-.attachment-form .btn {
+.attachment-form > .btn {
   margin-top: 10px;
 }
 
@@ -829,4 +829,95 @@
     margin-left: 0;
     padding-left: 0;
   }
+}
+
+/* ---------------------------------------------------------- uploads */
+
+.card-modal__dropzone {
+  position: relative;
+}
+
+.card-modal__drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 3px dashed var(--primary);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--primary-subtle) 85%, transparent);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+  pointer-events: none;
+}
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 22px 12px;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text-subtle);
+  text-align: center;
+}
+
+.dropzone:hover,
+.dropzone.is-over {
+  border-color: var(--primary);
+  background: var(--primary-subtle);
+  color: var(--primary);
+}
+
+.attachment__thumb {
+  width: 64px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-3);
+  background-size: cover;
+  background-position: center;
+  flex: none;
+}
+
+.attachment__cover-btn {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.attachment-form form .btn {
+  margin-top: 10px;
+}
+
+/* ------------------------------------------------------ custom fields */
+
+.custom-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px 12px;
+}
+
+.custom-field__label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-subtle);
+}
+
+.custom-field__check {
+  min-height: 28px;
+  padding: 0;
+}
+
+.custom-field__select {
+  width: 100%;
+  font-weight: 600;
 }

@@ -34,7 +34,7 @@ export function setPrefs(patch: Partial<Prefs>): void {
 
 /* --------------------------------------------------------------- UI state */
 
-export type BoardPanel = 'menu' | 'labels' | 'archive' | 'background' | null;
+export type BoardPanel = 'menu' | 'labels' | 'fields' | 'archive' | 'background' | null;
 
 export interface Toast {
   id: number;

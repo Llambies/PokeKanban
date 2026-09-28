@@ -1,4 +1,6 @@
-import type { AppData, Attachment, Board, Card, Checklist, ChecklistItem, Comment, Label, List, Priority } from '../types';
+import type {
+  AppData, Attachment, Board, Card, Checklist, ChecklistItem, Comment, CustomField, CustomFieldType, CustomFieldValue, Label, List, Priority,
+} from '../types';
 import { uid } from '../lib/id';
 import { emptyData } from './factories';
 
@@ -36,6 +38,34 @@ function normLabel(raw: Raw): Label {
   return { id: str(raw?.id) || uid(), name: str(raw?.name), color: strOrNull(raw?.color), icon: strOrNull(raw?.icon) };
 }
 
+const FIELD_TYPES: CustomFieldType[] = ['text', 'number', 'checkbox', 'date', 'select'];
+
+function normField(raw: Raw): CustomField {
+  return {
+    id: str(raw?.id) || uid(),
+    name: str(raw?.name, 'Campo'),
+    type: FIELD_TYPES.includes(raw?.type) ? raw.type : 'text',
+    options: arr(raw?.options).map((o) => ({ id: str(o?.id) || uid(), name: str(o?.name), color: strOrNull(o?.color) })),
+    showOnCard: raw?.showOnCard !== false,
+  };
+}
+
+/** Keeps a value only if it fits the field type. */
+export function validFieldValue(field: CustomField, value: unknown): CustomFieldValue | undefined {
+  switch (field.type) {
+    case 'text':
+      return typeof value === 'string' && value !== '' ? value : undefined;
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+    case 'checkbox':
+      return value === true ? true : undefined;
+    case 'date':
+      return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : undefined;
+    case 'select':
+      return typeof value === 'string' && field.options.some((o) => o.id === value) ? value : undefined;
+  }
+}
+
 function normCard(raw: Raw, now: number): Card {
   const cover = raw?.cover && typeof raw.cover === 'object'
     ? {
@@ -59,7 +89,15 @@ function normCard(raw: Raw, now: number): Card {
     priority: PRIORITIES.includes(raw.priority) ? raw.priority : null,
     checklists: arr(raw.checklists).map(normChecklist),
     attachments: arr(raw.attachments).map(
-      (a): Attachment => ({ id: str(a?.id) || uid(), name: str(a?.name), url: str(a?.url), createdAt: num(a?.createdAt, now) }),
+      (a): Attachment => ({
+        id: str(a?.id) || uid(),
+        name: str(a?.name),
+        url: str(a?.url),
+        createdAt: num(a?.createdAt, now),
+        ...(a?.kind === 'file' ? { kind: 'file' as const } : {}),
+        ...(typeof a?.size === 'number' ? { size: a.size } : {}),
+        ...(typeof a?.mime === 'string' ? { mime: a.mime } : {}),
+      }),
     ),
     comments: arr(raw.comments).map(
       (c): Comment => ({
@@ -69,6 +107,7 @@ function normCard(raw: Raw, now: number): Card {
         ...(typeof c?.editedAt === 'number' ? { editedAt: c.editedAt } : {}),
       }),
     ),
+    fields: raw.fields && typeof raw.fields === 'object' && !Array.isArray(raw.fields) ? { ...raw.fields } : {},
     isTemplate: bool(raw.isTemplate),
     archived: bool(raw.archived),
     createdAt: num(raw.createdAt, now),
@@ -100,6 +139,7 @@ function normBoard(raw: Raw, now: number): Board {
     starred: bool(raw.starred),
     listIds: arr(raw.listIds).filter((x) => typeof x === 'string'),
     labels: arr(raw.labels).map(normLabel),
+    fields: arr(raw.fields).map(normField),
     createdAt: num(raw.createdAt, now),
     updatedAt: num(raw.updatedAt, now),
   };
@@ -147,8 +187,17 @@ export function normalizeData(input: Raw): AppData {
       if (list.boardId === board.id && !list.archived && !seen.has(list.id)) board.listIds.push(list.id);
     }
     const labelIds = new Set(board.labels.map((l) => l.id));
+    const fields = new Map(board.fields.map((f) => [f.id, f]));
     for (const card of Object.values(data.cards)) {
-      if (card.boardId === board.id) card.labelIds = card.labelIds.filter((id) => labelIds.has(id));
+      if (card.boardId !== board.id) continue;
+      card.labelIds = card.labelIds.filter((id) => labelIds.has(id));
+      const values: Card['fields'] = {};
+      for (const [id, value] of Object.entries(card.fields)) {
+        const field = fields.get(id);
+        const valid = field && validFieldValue(field, value);
+        if (valid !== undefined) values[id] = valid;
+      }
+      card.fields = values;
     }
   }
 

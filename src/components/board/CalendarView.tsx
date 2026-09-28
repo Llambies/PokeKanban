@@ -24,8 +24,10 @@ function CalendarCard({ card, compact }: { card: Card; compact?: boolean }) {
   const status = dueStatus(card.due, card.dueDone);
   const cover = getColor(card.cover?.color);
   return (
-    <button
-      type="button"
+    // A div (not a button): Firefox can't drag buttons.
+    <div
+      role="button"
+      tabIndex={0}
       draggable
       className={`cal-card ${status ? `is-${status}` : ''} ${compact ? 'cal-card--compact' : ''}`}
       style={cover ? { borderLeftColor: cover.bg } : undefined}
@@ -34,6 +36,7 @@ function CalendarCard({ card, compact }: { card: Card; compact?: boolean }) {
         e.dataTransfer.effectAllowed = 'move';
       }}
       onClick={() => openCard(card.id, card.boardId)}
+      onKeyDown={(e) => e.key === 'Enter' && openCard(card.id, card.boardId)}
       onContextMenu={(e) => {
         if (wantsNativeMenu(e)) return;
         openContextMenu(e, () => cardMenu(card.id));
@@ -42,7 +45,7 @@ function CalendarCard({ card, compact }: { card: Card; compact?: boolean }) {
     >
       {card.due && timeOf(card.due) && <span className="cal-card__time">{timeOf(card.due)}</span>}
       <span className="cal-card__title">{card.title}</span>
-    </button>
+    </div>
   );
 }
 

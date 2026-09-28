@@ -32,6 +32,7 @@ const LS_KEY = 'pokekanban:data';
 const API = 'api/data';
 const SAVE_DELAY = 600;
 const RETRY_DELAY = 5000;
+const KEEPALIVE_LIMIT = 60_000;
 
 let rev = 0;
 let dirty = false;
@@ -89,10 +90,13 @@ async function flushServer(force = false): Promise<void> {
   setStatus('saving');
   const data = useStore.getState().data;
   try {
+    const body = JSON.stringify({ baseRev: rev, data, force });
     const res = await fetch(API, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ baseRev: rev, data, force }),
+      body,
+      // Small payloads survive the tab being closed mid-request.
+      keepalive: body.length < KEEPALIVE_LIMIT,
     });
     if (res.status === 409) {
       dirty = true;
@@ -197,10 +201,15 @@ export async function initPersistence(): Promise<void> {
       if (dirty) writeLocal(useStore.getState().data);
       return;
     }
-    if (dirty || inflight) {
+    if (!dirty && !inflight) return;
+    const size = JSON.stringify(useStore.getState().data).length;
+    if (dirty && !inflight && size < KEEPALIVE_LIMIT && usePersist.getState().status !== 'conflict') {
+      // Sent with keepalive: completes even though the page is closing.
       void flushServer();
-      e.preventDefault();
+      return;
     }
+    void flushServer();
+    e.preventDefault();
   });
 
   document.addEventListener('visibilitychange', () => {

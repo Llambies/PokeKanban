@@ -1,4 +1,4 @@
-import type { Board, Card, Checklist, ChecklistItem, Label, List } from '../types';
+import type { Board, Card, Checklist, ChecklistItem, CustomField, CustomFieldValue, Label, List } from '../types';
 import { toDateKey } from './dates';
 import { uid } from './id';
 
@@ -55,6 +55,43 @@ export function convertTrello(json: Raw): BoardPayload {
     return { id, name: String(l.name ?? ''), color: mapColor(l.color), icon: null };
   });
 
+  // Trello custom fields: text, number, checkbox, date, list (-> select).
+  const fieldMap = new Map<string, CustomField>();
+  const optionMap = new Map<string, string>();
+  const fields: CustomField[] = (json.customFields ?? []).map((f: Raw) => {
+    const type = f.type === 'list' ? 'select' : ['text', 'number', 'checkbox', 'date'].includes(f.type) ? f.type : 'text';
+    const field: CustomField = {
+      id: uid(),
+      name: String(f.name ?? 'Campo'),
+      type,
+      showOnCard: f.display?.cardFront !== false,
+      options: [...(f.options ?? [])].sort(byPos).map((o: Raw) => {
+        const id = uid();
+        optionMap.set(o.id, id);
+        return { id, name: String(o.value?.text ?? ''), color: mapColor(o.color) };
+      }),
+    };
+    fieldMap.set(f.id, field);
+    return field;
+  });
+
+  const fieldValues = (items: Raw[] | undefined): Record<string, CustomFieldValue> => {
+    const out: Record<string, CustomFieldValue> = {};
+    for (const item of items ?? []) {
+      const field = fieldMap.get(item.idCustomField);
+      if (!field) continue;
+      const v = item.value ?? {};
+      if (field.type === 'select' && item.idValue && optionMap.has(item.idValue)) out[field.id] = optionMap.get(item.idValue)!;
+      else if (field.type === 'number' && v.number !== undefined && Number.isFinite(Number(v.number))) out[field.id] = Number(v.number);
+      else if (field.type === 'checkbox' && String(v.checked) === 'true') out[field.id] = true;
+      else if (field.type === 'date' && v.date) {
+        const date = mapDate(v.date);
+        if (date) out[field.id] = date.slice(0, 10);
+      } else if (field.type === 'text' && v.text) out[field.id] = String(v.text);
+    }
+    return out;
+  };
+
   const background = BG_MAP[json.prefs?.background] ?? (json.prefs?.backgroundColor ? `custom:${json.prefs.backgroundColor}` : 'ocean');
 
   const board: Board = {
@@ -64,6 +101,7 @@ export function convertTrello(json: Raw): BoardPayload {
     starred: !!json.starred,
     listIds: [],
     labels,
+    fields,
     createdAt: now,
     updatedAt: now,
   };
@@ -138,12 +176,13 @@ export function convertTrello(json: Raw): BoardPayload {
       checklists,
       attachments: (c.attachments ?? [])
         .filter((a: Raw) => typeof a.url === 'string')
-        .map((a: Raw) => ({ id: uid(), name: String(a.name ?? a.url), url: a.url, createdAt: Date.parse(a.date) || now })),
+        .map((a: Raw) => ({ id: uid(), name: String(a.name ?? a.url), url: a.url, createdAt: Date.parse(a.date) || now, kind: 'link' as const })),
       comments: (commentsByCard.get(c.id) ?? []).map((a: Raw) => ({
         id: uid(),
         text: String(a.data?.text ?? ''),
         createdAt: Date.parse(a.date) || now,
       })),
+      fields: fieldValues(c.customFieldItems),
       isTemplate: !!c.isTemplate,
       archived: !!c.closed,
       createdAt: Date.parse(c.dateLastActivity) || now,

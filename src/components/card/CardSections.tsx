@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
-import { AlignLeft, ExternalLink, Link2, MessageSquare, Pencil, Trash2 } from 'lucide-react';
+import { AlignLeft, Download, ExternalLink, FileText, Link2, MessageSquare, Paperclip, Pencil, Trash2, Upload } from 'lucide-react';
 import type { Card } from '../../types';
 import * as S from '../../store/store';
 import { renderMarkdown } from '../../lib/markdown';
 import { formatTimestamp } from '../../lib/dates';
+import { formatSize, isImageAttachment, MAX_UPLOAD_MB } from '../../lib/upload';
 import { AutoTextarea } from '../common/AutoTextarea';
 
 /* ------------------------------------------------------ description */
@@ -98,27 +99,86 @@ export function normalizeUrl(url: string): string {
   return /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
-export function AttachmentForm({ onSubmit, initial }: { onSubmit: (name: string, url: string) => void; initial?: { name: string; url: string } }) {
+export function AttachmentForm({
+  onSubmit,
+  onFiles,
+  initial,
+}: {
+  onSubmit: (name: string, url: string) => void;
+  /** When given, a "file" tab lets the user upload files. */
+  onFiles?: (files: File[]) => void;
+  initial?: { name: string; url: string };
+}) {
+  const [tab, setTab] = useState<'file' | 'link'>(onFiles && !initial ? 'file' : 'link');
   const [url, setUrl] = useState(initial?.url ?? '');
   const [name, setName] = useState(initial?.name ?? '');
+  const [over, setOver] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
   return (
-    <form
-      className="attachment-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!url.trim()) return;
-        const full = normalizeUrl(url);
-        onSubmit(name.trim() || hostOf(full), full);
-      }}
-    >
-      <label className="field-label" htmlFor="att-url">Enlace</label>
-      <input id="att-url" className="input" autoFocus placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} />
-      <label className="field-label" htmlFor="att-name">Texto a mostrar (opcional)</label>
-      <input id="att-name" className="input" value={name} onChange={(e) => setName(e.target.value)} />
-      <button type="submit" className="btn btn--primary" disabled={!url.trim()}>
-        {initial ? 'Guardar' : 'Añadir'}
-      </button>
-    </form>
+    <div className="attachment-form">
+      {onFiles && !initial && (
+        <div className="segmented">
+          <button type="button" className={tab === 'file' ? 'is-active' : ''} onClick={() => setTab('file')}>
+            <Upload size={14} /> Archivo
+          </button>
+          <button type="button" className={tab === 'link' ? 'is-active' : ''} onClick={() => setTab('link')}>
+            <Link2 size={14} /> Enlace
+          </button>
+        </div>
+      )}
+      {tab === 'file' && onFiles ? (
+        <>
+          <button
+            type="button"
+            className={`dropzone ${over ? 'is-over' : ''}`}
+            onClick={() => fileInput.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setOver(true);
+            }}
+            onDragLeave={() => setOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setOver(false);
+              if (e.dataTransfer.files.length) onFiles([...e.dataTransfer.files]);
+            }}
+          >
+            <Upload size={22} />
+            <span>Elige archivos o suéltalos aquí</span>
+            <span className="muted small">Máx. {MAX_UPLOAD_MB} MB por archivo · también puedes pegar imágenes con Ctrl+V</span>
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => {
+              if (e.target.files?.length) onFiles([...e.target.files]);
+              e.target.value = '';
+            }}
+          />
+        </>
+      ) : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!url.trim()) return;
+            const full = normalizeUrl(url);
+            onSubmit(name.trim() || hostOf(full), full);
+          }}
+        >
+          <label className="field-label" htmlFor="att-url">Enlace</label>
+          <input id="att-url" className="input" autoFocus placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} />
+          <label className="field-label" htmlFor="att-name">Texto a mostrar (opcional)</label>
+          <input id="att-name" className="input" value={name} onChange={(e) => setName(e.target.value)} />
+          <button type="submit" className="btn btn--primary" disabled={!url.trim()}>
+            {initial ? 'Guardar' : 'Añadir'}
+          </button>
+        </form>
+      )}
+    </div>
   );
 }
 
@@ -128,8 +188,8 @@ export function Attachments({ card, onAdd }: { card: Card; onAdd: (anchor: HTMLE
   return (
     <section className="card-section">
       <div className="card-section__head">
-        <Link2 size={18} className="card-section__icon" />
-        <h3 className="card-section__title">Enlaces</h3>
+        <Paperclip size={18} className="card-section__icon" />
+        <h3 className="card-section__title">Adjuntos</h3>
         <div className="card-section__tools">
           <button type="button" className="btn btn--sm" onClick={(e) => onAdd(e.currentTarget)}>
             Añadir
@@ -137,42 +197,79 @@ export function Attachments({ card, onAdd }: { card: Card; onAdd: (anchor: HTMLE
         </div>
       </div>
       <div className="attachments">
-        {card.attachments.map((a) =>
-          editing === a.id ? (
-            <div key={a.id} className="attachment attachment--editing">
-              <AttachmentForm
-                initial={a}
-                onSubmit={(name, url) => {
-                  S.updateAttachment(card.id, a.id, { name, url });
-                  setEditing(null);
-                }}
-              />
-              <button type="button" className="btn btn--sm" onClick={() => setEditing(null)}>
-                Cancelar
-              </button>
-            </div>
-          ) : (
+        {card.attachments.map((a) => {
+          if (editing === a.id) {
+            return (
+              <div key={a.id} className="attachment attachment--editing">
+                <AttachmentForm
+                  initial={a}
+                  onSubmit={(name, url) => {
+                    S.updateAttachment(card.id, a.id, { name, url });
+                    setEditing(null);
+                  }}
+                />
+                <button type="button" className="btn btn--sm" onClick={() => setEditing(null)}>
+                  Cancelar
+                </button>
+              </div>
+            );
+          }
+          const image = isImageAttachment(a);
+          const isCover = !!image && card.cover?.image === a.url;
+          const isFile = a.kind === 'file';
+          return (
             <div key={a.id} className="attachment">
-              <span className="attachment__icon">
-                <Link2 size={16} />
-              </span>
+              {image ? (
+                <a href={a.url} target="_blank" rel="noopener noreferrer" className="attachment__thumb" style={{ backgroundImage: `url("${a.url}")` }} aria-label={`Ver ${a.name}`} />
+              ) : (
+                <span className="attachment__icon">{isFile ? <FileText size={16} /> : <Link2 size={16} />}</span>
+              )}
               <div className="attachment__main">
                 <a href={a.url} target="_blank" rel="noopener noreferrer" className="attachment__name">
                   {a.name} <ExternalLink size={12} />
                 </a>
                 <span className="muted small">
-                  {hostOf(a.url)} · {formatTimestamp(a.createdAt)}
+                  {isFile ? formatSize(a.size) || 'Archivo' : hostOf(a.url)} · {formatTimestamp(a.createdAt)}
                 </span>
+                {image && (
+                  <button
+                    type="button"
+                    className="link-btn attachment__cover-btn"
+                    onClick={() =>
+                      S.setCover(
+                        card.id,
+                        isCover
+                          ? card.cover?.color
+                            ? { ...card.cover, image: null }
+                            : null
+                          : { color: card.cover?.color ?? null, image: a.url, size: card.cover?.size ?? 'strip' },
+                      )
+                    }
+                  >
+                    {isCover ? 'Quitar de portada' : 'Usar como portada'}
+                  </button>
+                )}
               </div>
-              <button type="button" className="icon-btn icon-btn--sm" onClick={() => setEditing(a.id)} aria-label="Editar enlace">
-                <Pencil size={14} />
-              </button>
-              <button type="button" className="icon-btn icon-btn--sm icon-btn--danger" onClick={() => S.deleteAttachment(card.id, a.id)} aria-label="Eliminar enlace">
+              {isFile ? (
+                <a className="icon-btn icon-btn--sm" href={a.url} download={a.name} aria-label="Descargar" title="Descargar">
+                  <Download size={14} />
+                </a>
+              ) : (
+                <button type="button" className="icon-btn icon-btn--sm" onClick={() => setEditing(a.id)} aria-label="Editar enlace">
+                  <Pencil size={14} />
+                </button>
+              )}
+              <button
+                type="button"
+                className="icon-btn icon-btn--sm icon-btn--danger"
+                onClick={() => S.deleteAttachment(card.id, a.id)}
+                aria-label="Eliminar adjunto"
+              >
                 <Trash2 size={14} />
               </button>
             </div>
-          ),
-        )}
+          );
+        })}
       </div>
     </section>
   );

@@ -8,11 +8,12 @@ import { dueStatus, formatDate, formatTimestamp, parseLocal } from '../../lib/da
 import { checklistsProgress } from '../../lib/checklist';
 import { getPriority } from '../../lib/priority';
 import { getColor } from '../../lib/colors';
+import { fieldSortValue, formatFieldValue } from '../../lib/fields';
 import { openContextMenu, wantsNativeMenu } from '../contextmenu/menuStore';
 import { cardMenu } from '../contextmenu/menus';
 import { LabelChip } from '../common/LabelChip';
 
-type SortKey = 'board' | 'title' | 'list' | 'priority' | 'due' | 'progress' | 'updated';
+type SortKey = 'board' | 'title' | 'list' | 'priority' | 'due' | 'progress' | 'updated' | `f:${string}`;
 
 const PRIORITY_RANK: Record<Priority, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
 
@@ -25,7 +26,9 @@ export function TableView({ boardId }: { boardId: string }) {
   const rows = useMemo(() => {
     const real = cards.filter((c) => c.kind === 'card');
     if (sort.key === 'board') return sort.dir === 1 ? real : [...real].reverse();
+    const sortField = sort.key.startsWith('f:') ? board?.fields.find((f) => `f:${f.id}` === sort.key) : undefined;
     const value = (c: Card): number | string => {
+      if (sortField) return fieldSortValue(sortField, c.fields[sortField.id]);
       switch (sort.key) {
         case 'title':
           return c.title.toLocaleLowerCase('es');
@@ -76,6 +79,11 @@ export function TableView({ boardId }: { boardId: string }) {
               <Th k="priority">Prioridad</Th>
               <Th k="due">Vencimiento</Th>
               <Th k="progress">Checklist</Th>
+              {board.fields.map((f) => (
+                <Th key={f.id} k={`f:${f.id}`}>
+                  {f.name}
+                </Th>
+              ))}
               <Th k="updated" className="hide-sm">Actualizada</Th>
             </tr>
           </thead>
@@ -144,13 +152,31 @@ export function TableView({ boardId }: { boardId: string }) {
                       </span>
                     )}
                   </td>
+                  {board.fields.map((f) => {
+                    const text = formatFieldValue(f, card.fields[f.id]);
+                    const color = f.type === 'select' ? getColor(f.options.find((o) => o.id === card.fields[f.id])?.color) : null;
+                    return (
+                      <td key={f.id} className={f.type === 'number' ? 'data-table__num' : undefined}>
+                        {text !== null &&
+                          (f.type === 'select' ? (
+                            <span className="list-pill" style={color ? { background: color.bg, color: color.fg } : undefined}>
+                              {text}
+                            </span>
+                          ) : f.type === 'checkbox' ? (
+                            '✓'
+                          ) : (
+                            text
+                          ))}
+                      </td>
+                    );
+                  })}
                   <td className="muted hide-sm">{formatTimestamp(card.updatedAt)}</td>
                 </tr>
               );
             })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="data-table__empty">
+                <td colSpan={7 + board.fields.length} className="data-table__empty">
                   No hay tarjetas que mostrar.
                 </td>
               </tr>

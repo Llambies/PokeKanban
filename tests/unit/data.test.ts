@@ -53,7 +53,8 @@ describe('Trello import', () => {
       { id: 'L3', name: 'Old', pos: 3, closed: true },
     ],
     cards: [
-      { id: 'c2', name: 'Second', idList: 'L1', pos: 2, idLabels: ['l1'], desc: 'hola', closed: false, cover: { color: 'purple', size: 'full' } },
+      { id: 'c2', name: 'Second', idList: 'L1', pos: 2, idLabels: ['l1'], desc: 'hola', closed: false, cover: { color: 'purple', size: 'full' },
+        customFieldItems: [{ idCustomField: 'cf1', value: { number: '3' } }, { idCustomField: 'cf2', idValue: 'op1' }] },
       { id: 'c1', name: 'First', idList: 'L1', pos: 1, idLabels: [], closed: false, due: '2030-05-01T10:00:00.000Z', dueComplete: true },
       { id: 'c3', name: 'Archived', idList: 'L2', pos: 1, idLabels: [], closed: true },
     ],
@@ -62,6 +63,10 @@ describe('Trello import', () => {
         { id: 'i2', name: 'dos', pos: 2, state: 'incomplete' },
         { id: 'i1', name: 'uno', pos: 1, state: 'complete' },
       ] },
+    ],
+    customFields: [
+      { id: 'cf1', name: 'Puntos', type: 'number' },
+      { id: 'cf2', name: 'Estado', type: 'list', options: [{ id: 'op1', value: { text: 'Rojo' }, color: 'red', pos: 1 }] },
     ],
     actions: [{ type: 'commentCard', date: '2030-01-01T00:00:00.000Z', data: { text: 'Un comentario', card: { id: 'c2' } } }],
   };
@@ -89,6 +94,11 @@ describe('Trello import', () => {
     expect(second.cover).toEqual({ color: 'purple', image: null, size: 'full' });
     expect(second.comments[0].text).toBe('Un comentario');
     expect(second.labelIds).toEqual([board.labels[0].id]);
+    const [points, state] = board.fields;
+    expect(points.type).toBe('number');
+    expect(state.type).toBe('select');
+    expect(second.fields[points.id]).toBe(3);
+    expect(second.fields[state.id]).toBe(state.options[0].id);
     const archived = cards.find((c) => c.title === 'Archived')!;
     expect(archived.archived).toBe(true);
     expect(lists.find((l) => l.title === 'Doing')!.cardIds).not.toContain(archived.id);

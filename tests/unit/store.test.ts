@@ -145,4 +145,47 @@ describe('store', () => {
     S.deleteLabel(boardId, label.id);
     expect(S.getData().cards[card].labelIds).toEqual([]);
   });
+
+  it('custom fields: set, validate, remap across boards and clean up', () => {
+    const one = board();
+    const two = board();
+    const size = S.createField(one.boardId, {
+      name: 'Talla', type: 'select', showOnCard: true,
+      options: [{ id: 'o1', name: 'S', color: null }, { id: 'o2', name: 'L', color: 'red' }],
+    });
+    const cost = S.createField(one.boardId, { name: 'Coste', type: 'number', showOnCard: true, options: [] });
+    const card = S.createCard(one.todo, 'Con campos');
+    S.setCardField(card, size, 'o2');
+    S.setCardField(card, cost, 12.5);
+    S.setCardField(card, cost, 'no es un número' as unknown as number);
+    expect(S.getData().cards[card].fields).toEqual({ [size]: 'o2' });
+    S.setCardField(card, cost, 12.5);
+
+    S.moveCard(card, two.todo, 0);
+    const moved = S.getData().cards[card];
+    const target = S.getData().boards[two.boardId].fields;
+    const tSize = target.find((f) => f.name === 'Talla')!;
+    const tCost = target.find((f) => f.name === 'Coste')!;
+    expect(moved.fields[tCost.id]).toBe(12.5);
+    expect(tSize.options.find((o) => o.id === moved.fields[tSize.id])?.name).toBe('L');
+
+    // Removing an option clears values that pointed to it.
+    S.updateField(two.boardId, tSize.id, { options: tSize.options.filter((o) => o.name !== 'L') });
+    expect(S.getData().cards[card].fields[tSize.id]).toBeUndefined();
+    S.deleteField(two.boardId, tCost.id);
+    expect(S.getData().cards[card].fields).toEqual({});
+  });
+
+  it('duplicating a board keeps custom field values on new ids', () => {
+    const { boardId, todo } = board();
+    const f = S.createField(boardId, { name: 'Hecho por', type: 'text', showOnCard: true, options: [] });
+    const card = S.createCard(todo, 'A');
+    S.setCardField(card, f, 'yo');
+    const copyId = S.duplicateBoard(boardId)!;
+    const data = S.getData();
+    const copyField = data.boards[copyId].fields[0];
+    expect(copyField.id).not.toBe(f);
+    const copied = data.cards[data.lists[data.boards[copyId].listIds[0]].cardIds[0]];
+    expect(copied.fields[copyField.id]).toBe('yo');
+  });
 });

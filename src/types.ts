@@ -35,6 +35,10 @@ export interface Attachment {
   name: string;
   url: string;
   createdAt: number;
+  /** 'file' = uploaded to the server (url is relative: api/uploads/...). */
+  kind?: 'link' | 'file';
+  size?: number;
+  mime?: string;
 }
 
 export interface Comment {
@@ -51,6 +55,27 @@ export interface CardCover {
 }
 
 export type CardKind = 'card' | 'separator';
+
+export type CustomFieldType = 'text' | 'number' | 'checkbox' | 'date' | 'select';
+
+export interface CustomFieldOption {
+  id: ID;
+  name: string;
+  color: ColorKey | null;
+}
+
+export interface CustomField {
+  id: ID;
+  name: string;
+  type: CustomFieldType;
+  /** Only for 'select'. */
+  options: CustomFieldOption[];
+  /** Show the value as a badge on the card tile. */
+  showOnCard: boolean;
+}
+
+/** text -> string, number -> number, checkbox -> true, date -> "YYYY-MM-DD", select -> option id. */
+export type CustomFieldValue = string | number | boolean;
 
 export interface Card {
   id: ID;
@@ -69,6 +94,8 @@ export interface Card {
   checklists: Checklist[];
   attachments: Attachment[];
   comments: Comment[];
+  /** Values of the board's custom fields, by field id. */
+  fields: Record<ID, CustomFieldValue>;
   isTemplate: boolean;
   archived: boolean;
   createdAt: number;
@@ -100,6 +127,7 @@ export interface Board {
   /** Order of the (non archived) lists in this board. */
   listIds: ID[];
   labels: Label[];
+  fields: CustomField[];
   createdAt: number;
   updatedAt: number;
 }

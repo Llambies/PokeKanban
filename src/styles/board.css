@@ -926,3 +926,23 @@
     min-height: 72px;
   }
 }
+
+.badge--field {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge__key {
+  color: var(--text-muted);
+}
+
+.badge--option {
+  padding: 0 6px;
+  font-weight: 600;
+}
+
+.data-table__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

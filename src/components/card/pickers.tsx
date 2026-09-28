@@ -4,7 +4,7 @@ import type { Card, Priority } from '../../types';
 import * as S from '../../store/store';
 import { useBoard } from '../../store/hooks';
 import { getData, useStore } from '../../store/store';
-import { confirmDialog } from '../../store/ui';
+import { confirmDialog, toast } from '../../store/ui';
 import { normalize } from '../../lib/icons';
 import { PRIORITIES } from '../../lib/priority';
 import { addDaysKey, combine, dateKeyOf, nextWeekdayKey, timeOf, todayKey } from '../../lib/dates';
@@ -267,7 +267,11 @@ export function MoveCopyPicker({ card, mode, onDone }: { card: Card; mode: 'move
     if (!effectiveListId) return;
     if (mode === 'move') {
       S.moveCard(card.id, effectiveListId, pos - 1);
-      if (boardId !== card.boardId) navigate({ boardId, cardId: card.id }, true);
+      if (boardId !== card.boardId) {
+        // Follow the card to its new board (replacing the card entry keeps "back" sensible).
+        navigate({ boardId }, true);
+        toast(`Tarjeta movida a "${data.boards[boardId].title}"`);
+      }
     } else {
       const id = S.copyCard(card.id, effectiveListId, pos - 1, {
         title: title.trim() || card.title,

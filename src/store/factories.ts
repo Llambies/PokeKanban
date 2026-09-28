@@ -15,6 +15,7 @@ export function makeBoard(title: string, background = 'ocean'): Board {
     starred: false,
     listIds: [],
     labels: defaultLabels(),
+    fields: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -64,6 +65,7 @@ export function makeCard(boardId: string, listId: string, title: string, extra: 
     checklists: [],
     attachments: [],
     comments: [],
+    fields: {},
     isTemplate: false,
     archived: false,
     createdAt: now,
@@ -82,6 +84,14 @@ export function sampleData(): AppData {
   const board = makeBoard('Mi primer tablero', 'ocean');
   board.starred = true;
   const [urgent, important, idea, improvement, personal] = board.labels;
+  const [small, medium, large] = [uid(), uid(), uid()];
+  const effort = { id: uid(), name: 'Esfuerzo', type: 'select' as const, showOnCard: true, options: [
+    { id: small, name: 'Pequeño', color: 'green_subtle' },
+    { id: medium, name: 'Medio', color: 'yellow_subtle' },
+    { id: large, name: 'Grande', color: 'red_subtle' },
+  ] };
+  const cost = { id: uid(), name: 'Coste (€)', type: 'number' as const, showOnCard: true, options: [] };
+  board.fields = [effort, cost];
 
   const todo = makeList(board.id, 'Pendiente');
   todo.color = 'blue';
@@ -103,6 +113,7 @@ export function sampleData(): AppData {
       labelIds: [personal.id, important.id],
       priority: 'high',
       due: addDaysKey(5),
+      fields: { [effort.id]: large, [cost.id]: 850 },
       checklists: [
         {
           id: uid(),
@@ -121,6 +132,7 @@ export function sampleData(): AppData {
     makeCard(board.id, doing.id, 'Rediseñar la web personal', {
       labelIds: [improvement.id],
       priority: 'medium',
+      fields: { [effort.id]: medium },
       cover: { color: 'sky', image: null, size: 'strip' },
       start: addDaysKey(-2),
       due: addDaysKey(1),

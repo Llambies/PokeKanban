@@ -178,6 +178,21 @@ try {
   await page.locator('.cl-item', { hasText: 'Nieto' }).locator('.cl-item__check').click();
   const afterLeaf = await page.locator('.cl-item.is-done').count();
   check(afterLeaf === 1, `desmarcar una hoja desmarca los padres (${afterLeaf})`);
+  // Upload an image: becomes an attachment and the card cover.
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVR4nGNgYGD4z8DAwMDAxMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  await page.locator('.side-btn', { hasText: 'Adjunto' }).click();
+  await page.locator('.attachment-form input[type=file]').setInputFiles({ name: 'foto.png', mimeType: 'image/png', buffer: png });
+  await page.waitForSelector('.attachment__thumb');
+  check((await page.locator('.attachment', { hasText: 'foto.png' }).count()) === 1, 'sube un archivo adjunto');
+  // The card already has a color cover, so the image doesn't replace it automatically.
+  await page.locator('.attachment__cover-btn').click();
+  check((await page.locator('.card-modal__cover.has-image').count()) === 1, 'imagen adjunta como portada');
+  const src = await page.locator('.attachment__thumb').getAttribute('href');
+  const fileRes = await fetch(base + src);
+  check(fileRes.ok && (fileRes.headers.get('content-security-policy') ?? '').includes('sandbox'), 'el archivo se sirve aislado (CSP sandbox)');
   await shot('card');
 
   // Checklist item context menu -> convert to card.
@@ -187,10 +202,29 @@ try {
   await page.waitForSelector('.card-modal', { state: 'detached' });
   check((await page.locator('.card-tile', { hasText: 'Otro padre' }).count()) === 1, 'elemento de checklist → tarjeta');
 
+  console.log('Campos personalizados');
+  check((await page.locator('.card-tile', { hasText: 'Planificar vacaciones' }).locator('.badge--option', { hasText: 'Grande' }).count()) === 1, 'el ejemplo muestra un campo desplegable');
+  await page.click('button[aria-label="Menú del tablero"]');
+  await page.locator('.menu-list__item', { hasText: 'Campos personalizados' }).click();
+  await page.locator('.side-panel .btn', { hasText: 'Nuevo campo' }).click();
+  await page.locator('#field-name').fill('Cliente');
+  await page.locator('.field-editor button[type=submit]').click();
+  check((await page.locator('.fields-manager__name', { hasText: 'Cliente' }).count()) === 1, 'crea un campo de texto');
+  await page.keyboard.press('Escape');
+  await page.locator('.card-tile', { hasText: 'Tarjeta de prueba' }).click();
+  await page.waitForSelector('.card-modal');
+  await page.locator('.custom-field', { hasText: 'Cliente' }).locator('input').fill('ACME');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.card-modal', { state: 'detached' });
+  check((await page.locator('.card-tile', { hasText: 'Tarjeta de prueba' }).locator('.badge--field', { hasText: 'ACME' }).count()) === 1, 'el valor del campo aparece en la tarjeta');
+
   console.log('Vistas');
   await page.locator('.board-header__btn', { hasText: 'Tabla' }).click();
   await page.waitForSelector('.data-table');
   check((await page.locator('.data-table tbody tr').count()) >= 5, 'vista de tabla');
+  check((await page.locator('.data-table th', { hasText: 'Cliente' }).count()) === 1, 'la tabla muestra columnas de campos');
+  await shot('table');
   await page.locator('.board-header__btn', { hasText: 'Calendario' }).click();
   await page.waitForSelector('.calendar__grid');
   check((await page.locator('.calendar__day').count()) === 42, 'vista de calendario');
@@ -205,6 +239,22 @@ try {
   await page.keyboard.press('Escape');
   await page.keyboard.press('x');
   check((await page.locator('.card-tile').count()) > 1, 'X quita los filtros');
+
+  console.log('Seguridad API');
+  const foreign = await fetch(`${base}api/data`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', origin: 'https://evil.example' },
+    body: JSON.stringify({ baseRev: 0, data: {}, force: true }),
+  });
+  check(foreign.status === 403, `rechaza escrituras de otro origen (${foreign.status})`);
+  const textPlain = await fetch(`${base}api/data`, {
+    method: 'PUT',
+    headers: { 'content-type': 'text/plain' },
+    body: JSON.stringify({ baseRev: 0, data: {}, force: true }),
+  });
+  check(textPlain.status === 415, `rechaza cuerpos que no son JSON (${textPlain.status})`);
+  const post = await fetch(`${base}api/data`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  check(post.status === 405, `solo PUT modifica los datos (${post.status})`);
 
   console.log('Persistencia');
   await waitSaved();

@@ -64,6 +64,7 @@ export function navigate(route: Partial<Route>, replace = false): void {
   if (replace) {
     window.history.replaceState(null, '', hash);
     current = parseHash(hash);
+    if (!current.cardId) cardOpenedInApp = false;
     listeners.forEach((l) => l());
   } else {
     window.location.hash = hash;
