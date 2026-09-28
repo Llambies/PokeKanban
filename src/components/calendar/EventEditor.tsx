@@ -20,6 +20,7 @@ import { SwatchGrid } from '../common/SwatchGrid';
 import { IconPicker } from '../common/IconPicker';
 import { AutoTextarea } from '../common/AutoTextarea';
 import { enablePush, refreshPush, usePush } from '../../lib/push';
+import { isNativeApp } from '../../lib/native';
 import { askScope, deleteOccurrenceWithScope } from './actions';
 import { undoToast } from '../contextmenu/menus';
 
@@ -337,7 +338,7 @@ function RemindersEditor({ draft, onChange }: { draft: Draft; onChange: (reminde
 
 function PushHint() {
   const status = usePush((s) => s.status);
-  if (status !== 'off') return null;
+  if (status !== 'off' || isNativeApp()) return null;
   return (
     <p className="small muted ev-push-hint">
       Las notificaciones no están activadas en este dispositivo.{' '}

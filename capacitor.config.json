@@ -1,0 +1,12 @@
+{
+  "appId": "com.llambies.pokekanban",
+  "appName": "PokeKanban",
+  "webDir": "dist",
+  "server": {
+    "url": "https://kanban.llambies.com",
+    "errorPath": "offline.html"
+  },
+  "android": {
+    "backgroundColor": "#1d2125"
+  }
+}

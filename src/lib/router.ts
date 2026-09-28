@@ -20,6 +20,8 @@ export interface Route {
   eventId: string | null;
   occ: string | null;
   date: string | null;
+  /** "#/calendar?new=event": open the editor for a new item of that kind (widget "+" button). */
+  newKind: string | null;
 }
 
 const VIEWS: BoardView[] = ['kanban', 'table', 'calendar'];
@@ -33,6 +35,7 @@ export function parseHash(hash: string): Route {
   const day = (v: string | null) => (v && DAY.test(v) ? v : null);
   const route: Route = {
     page: 'home', boardId: null, view: 'kanban', cardId: params.get('c'), calView: null, eventId: null, occ: null, date: null,
+    newKind: null,
   };
   if (parts[0] === 'b' && parts[1]) {
     route.page = 'board';
@@ -44,6 +47,7 @@ export function parseHash(hash: string): Route {
     route.eventId = params.get('e');
     route.occ = day(params.get('o'));
     route.date = day(params.get('d'));
+    route.newKind = params.get('new');
   }
   return route;
 }
@@ -57,6 +61,7 @@ export function buildHash(route: Partial<Route>): string {
     if (route.date) query.set('d', route.date);
     if (route.eventId) query.set('e', route.eventId);
     if (route.eventId && route.occ) query.set('o', route.occ);
+    if (route.newKind) query.set('new', route.newKind);
   } else if (route.boardId) {
     hash = `#/b/${route.boardId}`;
     if (route.view && route.view !== 'kanban') hash += `/${route.view}`;

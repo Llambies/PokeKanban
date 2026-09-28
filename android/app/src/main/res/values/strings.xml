@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PokeKanban</string>
+    <string name="title_activity_main">PokeKanban</string>
+    <string name="package_name">com.llambies.pokekanban</string>
+    <string name="custom_url_scheme">com.llambies.pokekanban</string>
+    <!-- Server used by background sync until the app has opened once (same as capacitor.config.json). -->
+    <string name="server_url" translatable="false">https://kanban.llambies.com</string>
+    <string name="widget_description">Tus próximos eventos, cumpleaños, fechas límite y tarjetas</string>
+</resources>

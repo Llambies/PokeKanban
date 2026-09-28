@@ -15,7 +15,7 @@
 //   GET  /api/push             -> { publicKey, devices }     (VAPID key for PushManager.subscribe)
 //   POST /api/push/subscribe   <- { subscription, device }   POST /api/push/unsubscribe <- { endpoint }
 //   POST /api/push/test        <- { endpoint }               -> sends a test notification
-//   GET  /api/agenda?days=14   -> { today, timeZone, items }  (Android widget)
+//   GET  /api/agenda?days=14   -> { today, timeZone, items[, reminders] }  (Android widget and alarms)
 //
 // When a password is configured every route except session/login/logout needs a valid session
 // cookie (HttpOnly, SameSite=Strict, HMAC-signed with a key derived from the password, so changing
@@ -411,7 +411,11 @@ export function createHandler({ storage, password = '', requirePassword = false,
     const today = dayKeyAt(Date.now(), timeZone);
     const from = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('from') ?? '') ? url.searchParams.get('from') : today;
     const days = Math.max(1, Math.min(90, Number(url.searchParams.get('days')) || 14));
-    return json(200, { today, timeZone, generatedAt: Date.now(), items: agenda(data, from, days, { timeZone }) });
+    const now = Date.now();
+    const body = { today, timeZone, generatedAt: now, items: agenda(data, from, days, { timeZone }) };
+    // The Android app's background sync also schedules the upcoming reminders as alarms.
+    if (url.searchParams.get('reminders') === '1') body.reminders = collectReminders(data, now - 60_000, now + 8 * 86400e3);
+    return json(200, body);
   }
 
   async function handleUpload(request, url) {

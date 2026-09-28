@@ -229,6 +229,14 @@ export function CalendarPage() {
     if (route.date) setAnchor(route.date);
   }, [route.date]);
 
+  // "+" on the Android widget: open a new event right away.
+  useEffect(() => {
+    if (!route.newKind) return;
+    const kind = KIND_ORDER.find((k) => k === route.newKind) ?? 'event';
+    navigate({ ...route, newKind: null }, true);
+    newEvent(kind, todayKey());
+  }, [route]);
+
   const setView = (v: CalendarView) => {
     setPrefs({ calView: v });
     if (route.calView) navigate({ ...route, calView: null }, true);

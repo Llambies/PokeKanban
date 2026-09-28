@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { usePersist } from '../store/persistence';
+import { isNativeApp } from './native';
 
 /**
  * Push notifications for this device: the service worker (public/sw.js) receives reminders the
@@ -30,7 +31,8 @@ export function needsHomeScreen(): boolean {
 }
 
 export function registerServiceWorker(): void {
-  if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
+  // The Android app shows reminders natively (and its WebView has no push support).
+  if (!('serviceWorker' in navigator) || !window.isSecureContext || isNativeApp()) return;
   navigator.serviceWorker.register('sw.js').catch(() => {});
   // Taps on a notification while the app is open: go to the event.
   navigator.serviceWorker.addEventListener('message', (e) => {

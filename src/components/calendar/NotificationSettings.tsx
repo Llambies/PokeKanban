@@ -1,9 +1,64 @@
-import { useEffect } from 'react';
-import { BellOff, BellRing, Send } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlarmClock, BellOff, BellRing, Send } from 'lucide-react';
 import { disablePush, enablePush, needsHomeScreen, refreshPush, testPush, usePush } from '../../lib/push';
+import { isNativeApp, Native, type NativeStatus } from '../../lib/native';
 import { toast } from '../../store/ui';
 
+/** Inside the Android app: native notifications with exact alarms. */
+function NativeNotificationSettings() {
+  const [status, setStatus] = useState<NativeStatus | null>(null);
+  useEffect(() => {
+    const refresh = () => void Native.status().then(setStatus).catch(() => {});
+    refresh();
+    // Coming back from the system settings screen.
+    document.addEventListener('visibilitychange', refresh);
+    return () => document.removeEventListener('visibilitychange', refresh);
+  }, []);
+  if (!status) return null;
+  return (
+    <div className="notif-settings">
+      <div className="field-label">Notificaciones de la app</div>
+      {status.notifications ? (
+        <p className="small notif-settings__on">
+          <BellRing size={14} /> Activadas en este móvil
+        </p>
+      ) : (
+        <>
+          <p className="small muted">Permite las notificaciones para recibir los avisos aunque la app esté cerrada.</p>
+          <button type="button" className="btn btn--primary btn--block" onClick={() => void Native.requestNotifications().then(setStatus)}>
+            <BellRing size={15} /> Permitir notificaciones
+          </button>
+        </>
+      )}
+      {status.notifications && !status.exactAlarms && (
+        <>
+          <p className="small muted">Para que lleguen a la hora exacta, permite «Alarmas y recordatorios».</p>
+          <button type="button" className="btn btn--sm" onClick={() => void Native.openExactAlarmSettings()}>
+            <AlarmClock size={14} /> Abrir el ajuste
+          </button>
+        </>
+      )}
+      {status.notifications && (
+        <div className="notif-settings__actions">
+          <button type="button" className="btn btn--sm" onClick={() => void Native.test().then(() => toast('Notificación de prueba enviada'))}>
+            <Send size={14} /> Enviar prueba
+          </button>
+        </div>
+      )}
+      <p className="small muted">
+        {status.widgets > 0
+          ? `Widget en la pantalla de inicio: ${status.widgets}.`
+          : 'Añade el widget «Agenda de PokeKanban» manteniendo pulsada la pantalla de inicio → Widgets.'}
+      </p>
+    </div>
+  );
+}
+
 export function NotificationSettings() {
+  return isNativeApp() ? <NativeNotificationSettings /> : <WebNotificationSettings />;
+}
+
+function WebNotificationSettings() {
   const { status, devices, error } = usePush();
   useEffect(() => {
     void refreshPush();

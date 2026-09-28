@@ -21,6 +21,7 @@
     "node": ">=20.19"
   },
   "dependencies": {
+    "@capacitor/core": "^8.5.2",
     "@hello-pangea/dnd": "^18.0.1",
     "dompurify": "^3.4.16",
     "immer": "^11.1.18",
@@ -31,6 +32,8 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
     "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
