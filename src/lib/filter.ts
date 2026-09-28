@@ -13,6 +13,13 @@ export interface CardFilter {
   priorities: (Priority | 'none')[];
   /** 'any' = card matches if it satisfies any selected criterion inside each group. 'all' = must have every label. */
   labelMode: 'any' | 'all';
+  /** Custom field filters: field id -> accepted value keys (see fieldValueKey). */
+  fields: Record<string, string[]>;
+}
+
+/** Key used by field filters: option id for selects, "true" for checked boxes, "none" when empty. */
+export function fieldValueKey(value: unknown): string {
+  return value === undefined || value === null || value === '' ? 'none' : String(value);
 }
 
 export const EMPTY_FILTER: CardFilter = {
@@ -22,17 +29,24 @@ export const EMPTY_FILTER: CardFilter = {
   due: [],
   priorities: [],
   labelMode: 'any',
+  fields: {},
 };
+
+function fieldFilterCount(f: CardFilter): number {
+  return Object.values(f.fields).reduce((n, values) => n + values.length, 0);
+}
 
 export function isFilterActive(f: CardFilter): boolean {
   return (
-    f.text.trim() !== '' || f.labelIds.length > 0 || f.noLabel || f.due.length > 0 || f.priorities.length > 0
+    f.text.trim() !== '' || f.labelIds.length > 0 || f.noLabel || f.due.length > 0 || f.priorities.length > 0 ||
+    fieldFilterCount(f) > 0
   );
 }
 
 export function activeFilterCount(f: CardFilter): number {
   return (
-    (f.text.trim() ? 1 : 0) + f.labelIds.length + (f.noLabel ? 1 : 0) + f.due.length + f.priorities.length
+    (f.text.trim() ? 1 : 0) + f.labelIds.length + (f.noLabel ? 1 : 0) + f.due.length + f.priorities.length +
+    fieldFilterCount(f)
   );
 }
 
@@ -84,6 +98,9 @@ export function cardMatches(card: Card, f: CardFilter, labelNames?: Map<string, 
   if (f.priorities.length > 0) {
     const p = card.priority ?? 'none';
     if (!f.priorities.includes(p)) return false;
+  }
+  for (const [fieldId, accepted] of Object.entries(f.fields)) {
+    if (accepted.length > 0 && !accepted.includes(fieldValueKey(card.fields[fieldId]))) return false;
   }
   return true;
 }

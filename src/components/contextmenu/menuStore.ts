@@ -57,13 +57,16 @@ export function wantsNativeMenu(e: PointerLike): boolean {
 export function openContextMenu(e: PointerLike, build: () => MenuItem[]): void {
   e.preventDefault?.();
   e.stopPropagation?.();
-  useMenu.setState({
-    open: true,
-    x: e.clientX,
-    y: e.clientY,
-    build,
-    returnFocus: null,
-  });
+  let { clientX: x, clientY: y } = e;
+  let returnFocus: HTMLElement | null = null;
+  // Keyboard-triggered (Menu key / Shift+F10): no pointer position, anchor to the focused element.
+  if (x === 0 && y === 0 && e.target instanceof HTMLElement) {
+    const rect = e.target.getBoundingClientRect();
+    x = rect.left + Math.min(24, rect.width / 2);
+    y = rect.top + Math.min(24, rect.height / 2);
+    returnFocus = e.target;
+  }
+  useMenu.setState({ open: true, x, y, build, returnFocus });
 }
 
 /** Opens the menu below an element (for "…" buttons and keyboard access). */

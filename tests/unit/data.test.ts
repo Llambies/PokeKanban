@@ -122,6 +122,17 @@ describe('filters', () => {
     expect(cardMatches(card, { ...EMPTY_FILTER, priorities: ['none'] })).toBe(false);
   });
 
+  it('filters by custom field values', () => {
+    const withValue = makeCard('b', 'l', 'x', { fields: { f1: 'opt-a', f2: true } });
+    const empty = makeCard('b', 'l', 'y');
+    const byOption = { ...EMPTY_FILTER, fields: { f1: ['opt-a'] } };
+    expect(cardMatches(withValue, byOption)).toBe(true);
+    expect(cardMatches(empty, byOption)).toBe(false);
+    const noValue = { ...EMPTY_FILTER, fields: { f1: ['none'] } };
+    expect(cardMatches(empty, noValue)).toBe(true);
+    expect(cardMatches(withValue, { ...EMPTY_FILTER, fields: { f2: ['true'] } })).toBe(true);
+  });
+
   it('filters by due status', () => {
     const now = new Date(2030, 0, 10, 12);
     const overdue = makeCard('b', 'l', 'x', { due: '2030-01-09' });

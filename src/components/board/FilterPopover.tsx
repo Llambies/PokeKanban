@@ -82,6 +82,35 @@ export function FilterPanel({ boardId }: { boardId: string }) {
         </label>
       ))}
 
+      {board.fields
+        .filter((field) => field.type === 'select' || field.type === 'checkbox')
+        .map((field) => {
+          const accepted = filter.fields[field.id] ?? [];
+          const toggleKey = (key: string) =>
+            setFilter({ fields: { ...filter.fields, [field.id]: toggle(accepted, key) } });
+          const choices =
+            field.type === 'checkbox'
+              ? [
+                  { key: 'true', label: 'Marcada', color: null },
+                  { key: 'none', label: 'Sin marcar', color: null },
+                ]
+              : [
+                  ...field.options.map((o) => ({ key: o.id, label: o.name, color: o.color })),
+                  { key: 'none', label: 'Sin valor', color: null },
+                ];
+          return (
+            <div key={field.id}>
+              <div className="field-label">{field.name}</div>
+              {choices.map((c) => (
+                <label key={c.key} className="checkbox-row">
+                  <input type="checkbox" checked={accepted.includes(c.key)} onChange={() => toggleKey(c.key)} />
+                  {c.color ? <LabelChip label={{ name: c.label, color: c.color, icon: null }} /> : c.label}
+                </label>
+              ))}
+            </div>
+          );
+        })}
+
       <button type="button" className="btn btn--block" disabled={activeFilterCount(filter) === 0} onClick={clearFilter}>
         Quitar filtros
       </button>
