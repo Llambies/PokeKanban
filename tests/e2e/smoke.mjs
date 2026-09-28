@@ -301,6 +301,48 @@ try {
   check((await page.locator('.card-tile', { hasText: 'Tarjeta de prueba' }).count()) === 1, 'los cambios sobreviven a recargar');
   check(fs.existsSync(path.join(dataDir, 'backups')), 'se crean copias de seguridad diarias');
 
+  console.log('Calendario');
+  await page.locator('.header-btn', { hasText: 'Calendario' }).click();
+  await page.waitForSelector('.cal-page');
+  await page.locator('.cal-toolbar__views button', { hasText: 'Mes' }).click();
+  check((await page.locator('.cal-chip', { hasText: 'Gimnasio' }).count()) >= 2, 'el evento semanal de ejemplo aparece varias veces');
+  // New weekly event.
+  await page.locator('.cal-toolbar__actions .btn--primary').click();
+  await page.locator('.ctx-item', { hasText: 'Evento' }).click();
+  await page.fill('#event-title', 'Clase de inglés');
+  await page.locator('.ev-repeat select').selectOption('weekly');
+  await page.locator('.event-modal__foot button', { hasText: 'Crear' }).click();
+  await page.waitForTimeout(200);
+  const weekly = page.locator('.cal-chip', { hasText: 'Clase de inglés' });
+  const weeklyCount = await weekly.count();
+  check(weeklyCount >= 2, `crea un evento semanal (${weeklyCount} en la vista del mes)`);
+  // Edit only one occurrence.
+  await weekly.nth(1).click();
+  await page.fill('#event-title', 'Clase de inglés (examen)');
+  await page.locator('.event-modal__foot button', { hasText: 'Guardar' }).click();
+  await page.locator('.choice', { hasText: 'Solo este' }).click();
+  await page.waitForTimeout(200);
+  check((await page.locator('.cal-chip', { hasText: 'Clase de inglés (examen)' }).count()) === 1, 'cambia solo una repetición');
+  check((await page.locator('.cal-chip', { hasText: /Clase de inglés$/ }).count()) === weeklyCount - 1, 'las demás siguen igual');
+  // Birthday from the day menu, with age.
+  await page.locator('.cal-toolbar__views button', { hasText: 'Agenda' }).click();
+  await page.waitForSelector('.cal-agenda');
+  check((await page.locator('.agenda-row', { hasText: /Ana \(\d+\)/ }).count()) === 1, 'la agenda muestra el cumpleaños con la edad');
+  await shot('calendar-agenda');
+  // Delete the whole series from the context menu.
+  await page.locator('.cal-toolbar__views button', { hasText: 'Mes' }).click();
+  await page.locator('.cal-chip', { hasText: /Clase de inglés$/ }).first().click({ button: 'right' });
+  await page.locator('.ctx-item', { hasText: 'Eliminar' }).click();
+  await page.locator('.ctx-item', { hasText: 'Toda la serie' }).click();
+  await page.waitForTimeout(200);
+  check((await page.locator('.cal-chip', { hasText: /Clase de inglés$/ }).count()) === 0, 'elimina la serie desde el menú contextual');
+  await waitSaved();
+  const agendaApi = await (await fetch(`${base}api/agenda?days=14`)).json();
+  check(Array.isArray(agendaApi.items) && agendaApi.items.some((i) => i.title === 'Gimnasio'), 'la API de agenda (widget) devuelve los eventos');
+  await page.goto(base);
+  await page.waitForSelector('.home-upcoming');
+  check((await page.locator('.home-upcoming .agenda-row').count()) > 0, 'el inicio muestra los próximos días');
+
   console.log('Tema oscuro');
   await page.locator('button[aria-label="Ajustes"]').click();
   await page.locator('.ctx-item', { hasText: 'Oscuro' }).click();
