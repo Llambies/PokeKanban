@@ -88,15 +88,19 @@ docker build -t pokekanban .
 docker run -d -p 3000:3000 -v pokekanban-data:/data --name pokekanban pokekanban
 ```
 
-### Cloudflare Pages
+### Cloudflare
 
-Versión estática (los datos se guardan en el navegador de cada dispositivo, sin subida de archivos):
+Versión estática (los datos se guardan en el navegador de cada dispositivo, sin subida de archivos).
+Desde el panel de Cloudflare, sin instalar nada:
 
-1. En Cloudflare: **Workers & Pages → Crear → Pages → Conectar a Git** y elige este repositorio y la rama.
-2. Preajuste de framework: *Ninguno*. Comando de compilación: `npm run build:static`. Directorio de salida: `dist`.
-   (La versión de Node la toma de `.node-version`.)
+1. **Workers & Pages → Crear → Importar un repositorio** y elige este repositorio y la rama.
+2. Comando de compilación: `npm run build:static`. Comando de despliegue: `npx wrangler deploy`
+   (usa `wrangler.jsonc`). La versión de Node la toma de `.node-version`.
 
-O desde la terminal, con `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID` definidos: `npm run deploy:cloudflare`.
+Cada push a la rama vuelve a desplegar. Si prefieres Pages: preajuste *Ninguno*, compilación
+`npm run build:static` y directorio de salida `dist`.
+
+Desde la terminal, con `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID` definidos: `npm run deploy:cloudflare`.
 
 ### Sin servidor
 

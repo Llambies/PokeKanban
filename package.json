@@ -14,7 +14,7 @@
     "test:e2e": "node tests/e2e/smoke.mjs",
     "check": "tsc -b && vitest run",
     "build:static": "tsc -b && vite build --mode static",
-    "deploy:cloudflare": "npm run build:static && npx wrangler pages deploy dist --project-name pokekanban"
+    "deploy:cloudflare": "npm run build:static && npx wrangler deploy"
   },
   "engines": {
     "node": ">=20.19"
