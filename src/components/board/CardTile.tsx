@@ -6,7 +6,7 @@ import { useCard } from '../../store/hooks';
 import { updateCard, useStore } from '../../store/store';
 import { usePrefs, useUI } from '../../store/ui';
 import { openCard } from '../../lib/router';
-import { getColor } from '../../lib/colors';
+import { cssUrl, getColor } from '../../lib/colors';
 import { dueStatus, formatDate, DUE_STATUS_TEXT } from '../../lib/dates';
 import { checklistsProgress } from '../../lib/checklist';
 import { getPriority } from '../../lib/priority';
@@ -169,7 +169,7 @@ export const CardTile = memo(function CardTile({ cardId, index }: CardTileProps)
             ...((isSeparator || isFull) && coverColor
               ? { backgroundColor: coverColor.bg, color: coverColor.fg }
               : {}),
-            ...(isFull && cover?.image ? { backgroundImage: `url("${cover.image}")` } : {}),
+            ...(isFull && cover?.image ? { backgroundImage: cssUrl(cover.image) } : {}),
           }}
           onClick={() => !editing && openCard(cardId, card.boardId)}
           onKeyDown={(e) => {
@@ -195,7 +195,7 @@ export const CardTile = memo(function CardTile({ cardId, index }: CardTileProps)
                   className={`card-tile__cover ${cover.image ? 'has-image' : ''}`}
                   style={{
                     backgroundColor: coverColor?.bg,
-                    ...(cover.image ? { backgroundImage: `url("${cover.image}")` } : {}),
+                    ...(cover.image ? { backgroundImage: cssUrl(cover.image) } : {}),
                   }}
                 />
               )}

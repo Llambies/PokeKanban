@@ -20,7 +20,7 @@ Los datos son tuyos: se guardan en un archivo JSON en tu máquina (o en el naveg
 - **Cabeceras de lista de color**, con opción de teñir toda la columna.
 - **Portadas** de tarjeta (franja o tarjeta completa, color o imagen por URL).
 - **Separadores**: tarjetas que se muestran como cabeceras de color dentro de una lista.
-- 17 fondos de tablero (degradados y colores) + color personalizado.
+- 17 fondos de tablero (degradados y colores), color personalizado o imagen propia.
 
 **Sub-checklists**
 - Checklists con **subtareas anidadas hasta 5 niveles**.
@@ -28,6 +28,15 @@ Los datos son tuyos: se guardan en un archivo JSON en tu máquina (o en el naveg
 - Marcar un padre marca todas sus subtareas; el progreso cuenta las subtareas finales.
 - Arrastrar y soltar elementos (también entre checklists de la misma tarjeta), plegar/desplegar ramas.
 - Fecha por elemento (aparece en el calendario), «convertir en tarjeta», ocultar completados, copiar un checklist de otra tarjeta.
+
+**Campos personalizados** (de pago en Trello)
+- Texto, número, casilla, fecha y desplegable con colores, definidos por tablero.
+- Se editan en la tarjeta, se muestran como insignias, tienen columna en la vista de tabla y
+  los desplegables/casillas se cambian desde el clic derecho.
+
+**Adjuntos**
+- Enlaces y archivos de hasta 25 MB (con el servidor): elige archivos, **pega imágenes con Ctrl+V** o
+  **suéltalas sobre la tarjeta**. La primera imagen se usa como portada.
 
 **Y además**
 - Arrastrar y soltar tarjetas y listas (ratón y teclado), desplazar el tablero arrastrando el fondo.
@@ -38,8 +47,9 @@ Los datos son tuyos: se guardan en un archivo JSON en tu máquina (o en el naveg
 - Plantillas de tarjeta, archivo con restauración, favoritos, duplicar tableros.
 - Atajos de teclado estilo Trello sobre la tarjeta bajo el ratón (Enter, T, 1…9, D, C, Supr). Pulsa `?` para verlos todos.
 - Tema claro / oscuro / automático.
-- **Importar desde Trello** (JSON exportado desde *Menú → Imprimir, exportar y compartir → Exportar como JSON*),
-  exportar/importar copias de seguridad y tableros sueltos.
+- **Importar desde Trello** (JSON exportado desde *Menú → Imprimir, exportar y compartir → Exportar como JSON*):
+  listas, tarjetas, etiquetas, checklists, fechas, portadas, comentarios, enlaces y campos personalizados.
+  También exportar/importar copias de seguridad completas y tableros sueltos.
 
 ## Puesta en marcha
 
@@ -52,6 +62,7 @@ npm start          # http://localhost:3000
 ```
 
 Los datos se guardan en `data/pokekanban.json`, con una copia diaria en `data/backups/` (se conservan 30 días).
+Los archivos adjuntos van a `data/uploads/`. Para hacer una copia completa basta con copiar la carpeta `data/`.
 
 Para desarrollo (recarga en caliente, mismo almacenamiento en `data/`):
 
@@ -78,7 +89,8 @@ docker run -d -p 3000:3000 -v pokekanban-data:/data --name pokekanban pokekanban
 ### Sin servidor
 
 `dist/` también funciona como web estática (GitHub Pages, un NAS, abrirlo localmente con cualquier servidor estático).
-En ese caso los datos se guardan en el `localStorage` del navegador: exporta copias de seguridad de vez en cuando.
+En ese caso los datos se guardan en el `localStorage` del navegador (sin subida de archivos; los enlaces sí funcionan):
+exporta copias de seguridad de vez en cuando.
 
 ## Sincronización entre dispositivos
 

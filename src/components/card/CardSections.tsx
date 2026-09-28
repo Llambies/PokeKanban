@@ -4,6 +4,7 @@ import type { Card } from '../../types';
 import * as S from '../../store/store';
 import { renderMarkdown } from '../../lib/markdown';
 import { formatTimestamp } from '../../lib/dates';
+import { cssUrl } from '../../lib/colors';
 import { formatSize, isImageAttachment, MAX_UPLOAD_MB } from '../../lib/upload';
 import { AutoTextarea } from '../common/AutoTextarea';
 
@@ -220,7 +221,7 @@ export function Attachments({ card, onAdd }: { card: Card; onAdd: (anchor: HTMLE
           return (
             <div key={a.id} className="attachment">
               {image ? (
-                <a href={a.url} target="_blank" rel="noopener noreferrer" className="attachment__thumb" style={{ backgroundImage: `url("${a.url}")` }} aria-label={`Ver ${a.name}`} />
+                <a href={a.url} target="_blank" rel="noopener noreferrer" className="attachment__thumb" style={{ backgroundImage: cssUrl(a.url) }} aria-label={`Ver ${a.name}`} />
               ) : (
                 <span className="attachment__icon">{isFile ? <FileText size={16} /> : <Link2 size={16} />}</span>
               )}

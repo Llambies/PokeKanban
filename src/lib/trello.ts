@@ -92,7 +92,12 @@ export function convertTrello(json: Raw): BoardPayload {
     return out;
   };
 
-  const background = BG_MAP[json.prefs?.background] ?? (json.prefs?.backgroundColor ? `custom:${json.prefs.backgroundColor}` : 'ocean');
+  const bgImage = typeof json.prefs?.backgroundImage === 'string' && /^https?:\/\//.test(json.prefs.backgroundImage)
+    ? json.prefs.backgroundImage
+    : null;
+  const background = bgImage
+    ? `image:${bgImage}`
+    : BG_MAP[json.prefs?.background] ?? (json.prefs?.backgroundColor ? `custom:${json.prefs.backgroundColor}` : 'ocean');
 
   const board: Board = {
     id: boardId,

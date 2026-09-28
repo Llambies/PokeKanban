@@ -8,7 +8,7 @@ import * as S from '../../store/store';
 import { useCard } from '../../store/hooks';
 import { toast } from '../../store/ui';
 import { closeCard, cardLink } from '../../lib/router';
-import { getColor } from '../../lib/colors';
+import { cssUrl, getColor } from '../../lib/colors';
 import { DUE_STATUS_TEXT, dueStatus, formatDate } from '../../lib/dates';
 import { getPriority } from '../../lib/priority';
 import { copyToClipboard } from '../../lib/download';
@@ -170,7 +170,7 @@ export function CardModal({ cardId }: { cardId: string }) {
       {cover && (coverColor || cover.image) && (
         <div
           className={`card-modal__cover ${cover.image ? 'has-image' : ''}`}
-          style={{ backgroundColor: coverColor?.bg, ...(cover.image ? { backgroundImage: `url("${cover.image}")` } : {}) }}
+          style={{ backgroundColor: coverColor?.bg, ...(cover.image ? { backgroundImage: cssUrl(cover.image) } : {}) }}
         >
           <button type="button" className="btn btn--sm card-modal__cover-btn" onClick={(e) => openPop('cover', e.currentTarget)}>
             <PanelTop size={15} /> Portada

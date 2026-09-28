@@ -109,7 +109,15 @@ export const BOARD_BACKGROUNDS: BoardBackground[] = [
 
 const BG_BY_KEY = new Map(BOARD_BACKGROUNDS.map((b) => [b.key, b]));
 
+/** Safe value for `url("…")` in inline styles. */
+export function cssUrl(url: string): string {
+  return `url("${url.replace(/["\\\n\r]/g, (c) => encodeURIComponent(c))}")`;
+}
+
 export function getBoardBackground(key: string): BoardBackground {
+  if (key.startsWith('image:')) {
+    return { key, name: 'Imagen', css: `#2c333a ${cssUrl(key.slice(6))} center / cover no-repeat`, base: '#2c333a' };
+  }
   if (key.startsWith('custom:')) {
     const hex = key.slice(7);
     return { key, name: 'Personalizado', css: hex, base: hex };

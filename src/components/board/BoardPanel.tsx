@@ -298,7 +298,7 @@ export function BoardPanel({ boardId }: { boardId: string }) {
             <div className="bg-preview" style={{ background: getBoardBackground(board.background).css }}>
               <Image size={18} />
             </div>
-            <BackgroundGrid value={board.background} onChange={(background) => S.updateBoard(boardId, { background })} />
+            <BackgroundGrid value={board.background} onChange={(background) => S.updateBoard(boardId, { background })} allowImage />
           </>
         )}
       </div>

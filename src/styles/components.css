@@ -804,3 +804,11 @@
   border: 1px dashed var(--border-strong);
   background: transparent;
 }
+
+.bg-image {
+  margin-top: 4px;
+}
+
+.bg-image .input {
+  flex: 1;
+}

@@ -1,10 +1,72 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { Upload } from 'lucide-react';
+import { usePersist } from '../../store/persistence';
+import { toast } from '../../store/ui';
+import { uploadFile } from '../../lib/upload';
 import { BOARD_BACKGROUNDS, getBoardBackground } from '../../lib/colors';
 import { createBoard } from '../../store/store';
 
-export function BackgroundGrid({ value, onChange }: { value: string; onChange: (key: string) => void }) {
+function BackgroundImage({ value, onChange }: { value: string; onChange: (key: string) => void }) {
+  const [url, setUrl] = useState(value.startsWith('image:') ? value.slice(6) : '');
+  const [busy, setBusy] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const uploads = usePersist((s) => s.mode === 'server');
+  return (
+    <div className="bg-image">
+      <div className="field-label">Imagen de fondo</div>
+      {/* Not a <form>: this may live inside the "create board" form. */}
+      <div className="inline-form">
+        <input
+          className="input input--sm"
+          type="url"
+          placeholder="https://…/foto.jpg"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              if (url.trim()) onChange(`image:${url.trim()}`);
+            }
+          }}
+        />
+        <button type="button" className="btn btn--sm" disabled={!url.trim()} onClick={() => onChange(`image:${url.trim()}`)}>
+          Usar
+        </button>
+        {uploads && (
+          <button type="button" className="btn btn--sm" disabled={busy} onClick={() => fileInput.current?.click()} title="Subir imagen">
+            <Upload size={14} />
+          </button>
+        )}
+      </div>
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          setBusy(true);
+          try {
+            const up = await uploadFile(file);
+            setUrl(up.url);
+            onChange(`image:${up.url}`);
+          } catch (err) {
+            toast(err instanceof Error ? err.message : 'No se pudo subir la imagen');
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+export function BackgroundGrid({ value, onChange, allowImage = false }: { value: string; onChange: (key: string) => void; allowImage?: boolean }) {
   const custom = value.startsWith('custom:') ? value.slice(7) : '#0c66e4';
   return (
+    <>
     <div className="bg-grid">
       {BOARD_BACKGROUNDS.map((bg) => (
         <button
@@ -23,6 +85,8 @@ export function BackgroundGrid({ value, onChange }: { value: string; onChange: (
         <span>+</span>
       </label>
     </div>
+    {allowImage && <BackgroundImage value={value} onChange={onChange} />}
+    </>
   );
 }
 
@@ -45,7 +109,7 @@ export function CreateBoardForm({ onCreated }: { onCreated: (id: string) => void
         <span />
       </div>
       <div className="field-label">Fondo</div>
-      <BackgroundGrid value={background} onChange={setBackground} />
+      <BackgroundGrid value={background} onChange={setBackground} allowImage />
       <label className="field-label" htmlFor="new-board-title">
         Título del tablero
       </label>
