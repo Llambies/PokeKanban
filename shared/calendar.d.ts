@@ -3,6 +3,7 @@ import type { AppData, CalendarEvent, EventKind } from '../src/types';
 export const WEEKDAY_NAMES: string[];
 export const MONTH_NAMES: string[];
 export const CHECKABLE_KINDS: EventKind[];
+export const DEFAULT_KIND_ICONS: Record<EventKind | 'card', string>;
 
 export function keyToDay(key: string): number;
 export function dayToKey(day: number): string;

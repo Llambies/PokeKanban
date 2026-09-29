@@ -1,6 +1,6 @@
 import type { AppData, CalendarEvent, Card, ColorKey, EventKind, Label, Recurrence } from '../types';
 import {
-  dayToKey, isCheckable, isLastWeekdayOfMonth, keyToDay, MONTH_NAMES, nthOfMonth, occurrenceRange, occurrences, spanDays,
+  DEFAULT_KIND_ICONS, dayToKey, isCheckable, isLastWeekdayOfMonth, keyToDay, MONTH_NAMES, nthOfMonth, occurrenceRange, occurrences, spanDays,
   WEEKDAY_NAMES, weekdayOf, yearsAt,
 } from '../../shared/calendar.js';
 import { normalize } from './icons';
@@ -17,14 +17,14 @@ export interface KindInfo {
 export const KIND_ORDER: EventKind[] = ['event', 'birthday', 'anniversary', 'deadline', 'reminder'];
 
 export const KIND_INFO: Record<EventKind, KindInfo> = {
-  event: { label: 'Evento', icon: 'lucide:Calendar', color: 'blue', placeholder: 'Título del evento' },
-  birthday: { label: 'Cumpleaños', icon: 'lucide:CakeSlice', color: 'pink', placeholder: 'Nombre (p. ej. Ana)' },
-  anniversary: { label: 'Aniversario', icon: 'lucide:Heart', color: 'red', placeholder: 'Aniversario de…' },
-  deadline: { label: 'Fecha límite', icon: 'lucide:Flag', color: 'orange', placeholder: '¿Qué vence?' },
-  reminder: { label: 'Recordatorio', icon: 'lucide:Bell', color: 'sky', placeholder: '¿Qué hay que recordar?' },
+  event: { label: 'Evento', icon: DEFAULT_KIND_ICONS.event, color: 'blue', placeholder: 'Título del evento' },
+  birthday: { label: 'Cumpleaños', icon: DEFAULT_KIND_ICONS.birthday, color: 'pink', placeholder: 'Nombre (p. ej. Ana)' },
+  anniversary: { label: 'Aniversario', icon: DEFAULT_KIND_ICONS.anniversary, color: 'red', placeholder: 'Aniversario de…' },
+  deadline: { label: 'Fecha límite', icon: DEFAULT_KIND_ICONS.deadline, color: 'orange', placeholder: '¿Qué vence?' },
+  reminder: { label: 'Recordatorio', icon: DEFAULT_KIND_ICONS.reminder, color: 'sky', placeholder: '¿Qué hay que recordar?' },
 };
 
-export const CARD_KIND_INFO: KindInfo = { label: 'Tarjetas', icon: 'lucide:ClipboardList', color: 'black', placeholder: '' };
+export const CARD_KIND_INFO: KindInfo = { label: 'Tarjetas', icon: DEFAULT_KIND_ICONS.card, color: 'black', placeholder: '' };
 
 export function eventColorKey(event: Pick<CalendarEvent, 'color' | 'labelIds' | 'kind'>, labels: Label[]): ColorKey {
   if (event.color) return event.color;
@@ -281,7 +281,7 @@ export function calendarItems(data: AppData, fromKey: string, toKey: string, fil
             time: allDay ? '' : card.due.slice(11, 16),
             endTime: '',
             colorKey: card.cover?.color ?? null,
-            icon: 'lucide:ClipboardList',
+            icon: DEFAULT_KIND_ICONS.card,
             checkable: true,
             done: card.dueDone,
             overdue: !card.dueDone && isPast(card.due, now),

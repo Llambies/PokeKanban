@@ -60,7 +60,8 @@ public class AgendaWidgetService extends RemoteViewsService {
             boolean overdue = item.optBoolean("overdue");
             views.setTextViewText(R.id.item_time, time.isEmpty() ? "Todo el día" : time);
             views.setTextColor(R.id.item_time, overdue ? 0xFFE5484D : ctx.getColor(R.color.widget_muted));
-            views.setTextViewText(R.id.item_title, item.optString("emoji", "📅") + "  " + item.optString("title", ""));
+            views.setTextViewText(R.id.item_title, item.optString("title", ""));
+            showIcon(views, item);
 
             String detail = item.optString("detail", "");
             if (overdue) detail = detail.isEmpty() ? "Pendiente" : "Pendiente · " + detail;
@@ -81,6 +82,44 @@ public class AgendaWidgetService extends RemoteViewsService {
             fill.putExtra(MainActivity.EXTRA_ROUTE, item.optString("url", "#/calendar"));
             views.setOnClickFillInIntent(R.id.item_root, fill);
             return views;
+        }
+
+        /** Same icon as in the app: its Lucide icon, or the emoji picked for the event. */
+        private void showIcon(RemoteViews views, JSONObject item) {
+            String icon = item.optString("icon", "");
+            if (icon.equals("null")) icon = "";
+            int drawable = LucideIcons.drawableFor(icon);
+            if (drawable == 0 && !icon.isEmpty() && !icon.startsWith("lucide:")) {
+                views.setTextViewText(R.id.item_emoji, icon);
+                views.setViewVisibility(R.id.item_emoji, View.VISIBLE);
+                views.setViewVisibility(R.id.item_icon, View.GONE);
+                return;
+            }
+            if (drawable == 0) drawable = LucideIcons.drawableFor(defaultIcon(item.optString("kind", "event")));
+            views.setViewVisibility(R.id.item_emoji, View.GONE);
+            views.setViewVisibility(R.id.item_icon, drawable == 0 ? View.GONE : View.VISIBLE);
+            if (drawable != 0) {
+                views.setImageViewResource(R.id.item_icon, drawable);
+                views.setInt(R.id.item_icon, "setColorFilter", ctx.getColor(R.color.widget_muted));
+            }
+        }
+
+        /** Kind icons (as in the app) for agendas saved before items carried their icon. */
+        private static String defaultIcon(String kind) {
+            switch (kind) {
+                case "birthday":
+                    return "lucide:CakeSlice";
+                case "anniversary":
+                    return "lucide:Heart";
+                case "deadline":
+                    return "lucide:Flag";
+                case "reminder":
+                    return "lucide:Bell";
+                case "card":
+                    return "lucide:ClipboardList";
+                default:
+                    return "lucide:Calendar";
+            }
         }
 
         @Override

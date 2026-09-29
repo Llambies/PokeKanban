@@ -121,6 +121,8 @@ describe('agenda', () => {
     expect(items.map((i) => i.title)).toEqual(['Informe', 'Vacaciones', 'Comida']);
     expect(items[0].overdue).toBe(true);
     expect(items[1].color).toBe('#4BCE97');
+    // The widget draws the app's icons: the item's own or its kind's.
+    expect(items.map((i) => i.icon)).toEqual(['lucide:Flag', 'lucide:Calendar', 'lucide:Calendar']);
   });
 });
 

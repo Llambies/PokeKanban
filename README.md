@@ -160,6 +160,10 @@ privada, añade en GitHub *Settings → Secrets and variables → Actions* los s
 (el archivo `.keystore` en base64), `POKEKANBAN_KEYSTORE_PASSWORD` y `POKEKANBAN_KEY_ALIAS` (al cambiar de clave
 hay que desinstalar la versión anterior una vez).
 
+El widget usa los mismos iconos que la app: `npm run android:icons` convierte los iconos de Lucide que ofrece
+el selector (`src/lib/icons.tsx`) en vectores de Android (`android/app/src/main/res/drawable/lucide_*.xml`).
+Vuelve a ejecutarlo si añades iconos al selector.
+
 Para compilarla en tu ordenador (Android Studio o SDK de Android y JDK 21):
 
 ```bash

@@ -15,7 +15,8 @@
     "check": "tsc -b && vitest run",
     "build:static": "tsc -b && vite build --mode static",
     "deploy:cloudflare": "npm run build && npx wrangler deploy",
-    "dev:worker": "npm run build && wrangler dev"
+    "dev:worker": "npm run build && wrangler dev",
+    "android:icons": "node scripts/android-icons.mjs"
   },
   "engines": {
     "node": ">=20.19"

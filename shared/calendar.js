@@ -201,6 +201,16 @@ export function yearsAt(event, occKey) {
 
 export const CHECKABLE_KINDS = ['deadline', 'reminder'];
 
+/** Icon shown for each kind of item when it has none of its own (same as the app). */
+export const DEFAULT_KIND_ICONS = {
+  event: 'lucide:Calendar',
+  birthday: 'lucide:CakeSlice',
+  anniversary: 'lucide:Heart',
+  deadline: 'lucide:Flag',
+  reminder: 'lucide:Bell',
+  card: 'lucide:ClipboardList',
+};
+
 export function isCheckable(event) {
   return CHECKABLE_KINDS.includes(event.kind);
 }
@@ -433,7 +443,8 @@ export function agenda(data, fromKey, days, opts = {}) {
         endTime: end ? timeOf(end) : '',
         colorKey,
         color: colorHex(colorKey),
-        icon: event.icon,
+        // Effective icon: the event's own or its kind's (the widget draws the app's Lucide icons).
+        icon: event.icon ?? DEFAULT_KIND_ICONS[event.kind] ?? null,
         emoji: iconEmoji(event.icon, event.kind),
         detail:
           event.kind === 'birthday' ? (years ? `Cumple ${years} años` : 'Cumpleaños')
@@ -467,7 +478,7 @@ export function agenda(data, fromKey, days, opts = {}) {
         endTime: '',
         colorKey,
         color: colorHex(colorKey),
-        icon: null,
+        icon: DEFAULT_KIND_ICONS.card,
         emoji: '📋',
         detail: data.boards[card.boardId].title,
         checkable: true,
