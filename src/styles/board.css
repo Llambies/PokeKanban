@@ -238,6 +238,11 @@
   scrollbar-width: thin;
 }
 
+/* Cards keep their height and the list scrolls (overflow: hidden would otherwise let them shrink). */
+.list__cards > * {
+  flex-shrink: 0;
+}
+
 .list__cards.is-over {
   background: var(--hover);
   border-radius: var(--radius);
