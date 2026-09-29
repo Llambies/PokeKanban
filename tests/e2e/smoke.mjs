@@ -54,7 +54,12 @@ await new Promise((resolve) => server.stdout.once('data', resolve));
 const base = `http://127.0.0.1:${port}/`;
 
 const browser = await chromium.launch({ executablePath: findChromium() });
+// Pokémon sprites come from GitHub (PokeAPI): serve a local 1×1 PNG so the test needs no network.
+const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+const offlineSprites = (p) => p.route(/raw\.githubusercontent\.com/, (route) => route.fulfill({ contentType: 'image/png', body: PIXEL }));
+
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+await offlineSprites(page);
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
@@ -382,6 +387,7 @@ try {
   try {
     check((await fetch(`${authBase}api/data`)).status === 401, 'sin sesión la API responde 401');
     const authPage = await browser.newPage({ viewport: { width: 1000, height: 800 } });
+    await offlineSprites(authPage);
     authPage.on('pageerror', (e) => errors.push(e.message));
     await authPage.goto(authBase);
     await authPage.waitForSelector('#login-password');
