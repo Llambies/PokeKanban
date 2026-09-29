@@ -21,39 +21,37 @@ import org.json.JSONObject;
 final class PokeSprites {
 
     private static final String SPRITES = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon";
-    private static final int ICON_MAX = 898;
     private static final int MAX_PREFETCH = 60;
 
     private PokeSprites() {}
 
-    /** Number of the Pokémon of an icon value, or 0. */
-    static int idOf(String icon) {
-        if (icon == null || !icon.startsWith("poke:")) return 0;
-        try {
-            return Integer.parseInt(icon.substring(5));
-        } catch (NumberFormatException e) {
-            return 0;
-        }
+    /** Sprite key of an icon value ("poke:25", "poke:10091", "poke:201-b"), or null. */
+    static String keyOf(String icon) {
+        if (icon == null || !icon.startsWith("poke:")) return null;
+        String key = icon.substring(5);
+        return key.matches("\\d+(-[a-z0-9-]+)?") ? key : null;
     }
 
-    private static String url(int id) {
-        return id <= ICON_MAX ? SPRITES + "/versions/generation-viii/icons/" + id + ".png" : SPRITES + "/" + id + ".png";
-    }
-
-    private static File file(Context ctx, int id) {
+    private static File file(Context ctx, String key) {
         File dir = new File(ctx.getCacheDir(), "pokemon");
         if (!dir.exists()) dir.mkdirs();
-        return new File(dir, id + ".png");
+        return new File(dir, key + ".png");
     }
 
     /** Makes sure the sprite is cached (network: call it off the main thread). */
-    static boolean fetch(Context ctx, int id) {
-        File target = file(ctx, id);
+    static boolean fetch(Context ctx, String key) {
+        File target = file(ctx, key);
         if (target.exists() && target.length() > 0) return true;
+        // The menu icon when there is one, otherwise the regular sprite (as the web app does).
+        return download(SPRITES + "/versions/generation-viii/icons/" + key + ".png", target)
+            || download(SPRITES + "/" + key + ".png", target);
+    }
+
+    private static boolean download(String url, File target) {
         HttpURLConnection conn = null;
         File tmp = new File(target.getPath() + ".tmp");
         try {
-            conn = (HttpURLConnection) new URL(url(id)).openConnection();
+            conn = (HttpURLConnection) new URL(url).openConnection();
             conn.setConnectTimeout(8000);
             conn.setReadTimeout(8000);
             if (conn.getResponseCode() != 200) return false;
@@ -72,8 +70,8 @@ final class PokeSprites {
     }
 
     /** The cached sprite cropped to the Pokémon, centered in a square of `size` px, or null. */
-    static Bitmap bitmap(Context ctx, int id, int size) {
-        File source = file(ctx, id);
+    static Bitmap bitmap(Context ctx, String key, int size) {
+        File source = file(ctx, key);
         if (!source.exists()) return null;
         Bitmap sprite = BitmapFactory.decodeFile(source.getPath());
         if (sprite == null) return null;
@@ -113,8 +111,8 @@ final class PokeSprites {
             if (list == null) continue;
             for (int i = 0; i < list.length() && count < MAX_PREFETCH; i++) {
                 JSONObject item = list.optJSONObject(i);
-                int id = item == null ? 0 : idOf(item.optString("icon", ""));
-                if (id > 0 && fetch(ctx, id)) count++;
+                String key = item == null ? null : keyOf(item.optString("icon", ""));
+                if (key != null && fetch(ctx, key)) count++;
             }
         }
     }

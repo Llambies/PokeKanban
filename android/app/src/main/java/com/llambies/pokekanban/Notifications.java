@@ -70,8 +70,8 @@ final class Notifications {
             .setAutoCancel(true)
             .setContentIntent(open);
         // An event with a Pokémon as its icon shows it (if already cached: no network here).
-        int poke = PokeSprites.idOf(icon);
-        if (poke > 0) {
+        String poke = PokeSprites.keyOf(icon);
+        if (poke != null) {
             Bitmap sprite = PokeSprites.bitmap(ctx, poke, Math.round(64 * ctx.getResources().getDisplayMetrics().density));
             if (sprite != null) builder.setLargeIcon(sprite);
         }

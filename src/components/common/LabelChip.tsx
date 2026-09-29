@@ -2,13 +2,13 @@ import type { CSSProperties } from 'react';
 import type { Label } from '../../types';
 import { getColor } from '../../lib/colors';
 import { getLucideIcon } from '../../lib/icons';
-import { pokemonId, spriteStyle } from '../../lib/pokemon';
+import { pokemonKey, spriteStyle } from '../../lib/pokemon';
 
 export function IconGlyph({ icon, size = 14 }: { icon: string | null | undefined; size?: number }) {
   if (!icon) return null;
   const Lucide = getLucideIcon(icon);
   if (Lucide) return <Lucide size={size} strokeWidth={2.25} aria-hidden />;
-  const poke = pokemonId(icon);
+  const poke = pokemonKey(icon);
   // Sprites have no stroke weight: draw them a bit bigger than line icons.
   if (poke) return <span className="poke-glyph" style={spriteStyle(poke, Math.round(size * 1.3))} aria-hidden />;
   return (

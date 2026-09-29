@@ -1,43 +1,50 @@
 import type { CSSProperties } from 'react';
-import { POKEMON, type PokemonRow } from './pokemon-data';
-import { POKEMON_PREFIX, pokemonId, pokemonSpriteSize, pokemonSpriteUrl } from '../../shared/pokemon.js';
+import { POKEMON, type PokemonRow } from '../../shared/pokemon-data.js';
+import { POKEMON_PREFIX, pokemonKey, pokemonRow, pokemonSpriteSize, pokemonSpriteUrl } from '../../shared/pokemon.js';
 import { normalize } from './icons';
 
 /**
- * Pokémon icons: an icon value "poke:<number>" shows that Pokémon's PokeAPI icon, cropped to the
- * box the sprite really covers (see scripts/pokemon-data.mjs) so it reads well at small sizes.
+ * Pokémon icons: an icon value "poke:<key>" shows that Pokémon's (or form's) PokeAPI image, cropped to
+ * the box the sprite really covers (see scripts/pokemon-data.mjs) so it reads well at small sizes.
  */
-export { pokemonId };
+export { pokemonKey, type PokemonRow };
 
-const BY_ID = new Map<number, PokemonRow>(POKEMON.map((row) => [row[0], row]));
+export const POKEMON_ROWS = POKEMON;
+export const SPECIES_COUNT = POKEMON.filter((row) => row[0] === String(row[1])).length;
+export const FORMS_COUNT = POKEMON.length - SPECIES_COUNT;
 
-export const POKEMON_COUNT = POKEMON.length;
-
-export function pokemonIconValue(id: number): string {
-  return POKEMON_PREFIX + id;
+export function pokemonIconValue(key: string): string {
+  return POKEMON_PREFIX + key;
 }
 
-export function pokemonName(id: number): string {
-  return BY_ID.get(id)?.[1] ?? `#${id}`;
+export function pokemonName(key: string): string {
+  return pokemonRow(key)?.[2] ?? `#${key}`;
 }
 
-/** By Spanish or English name, or by number ("25", "#25"). */
-export function searchPokemon(query: string): PokemonRow[] {
+export function isForm(row: PokemonRow): boolean {
+  return row[0] !== String(row[1]);
+}
+
+/** By Spanish or English name ("alola", "gigamax", "mega"…), or by Pokédex number ("25", "#25"). */
+export function searchPokemon(query: string, includeForms = true): PokemonRow[] {
+  const rows = includeForms ? POKEMON : POKEMON.filter((row) => !isForm(row));
   const q = normalize(query.trim().replace(/^#/, ''));
-  if (!q) return POKEMON;
-  if (/^\d+$/.test(q)) return POKEMON.filter((row) => String(row[0]).startsWith(q));
-  return POKEMON.filter((row) => normalize(row[1]).includes(q) || (row[6] !== undefined && normalize(row[6]).includes(q)));
+  if (!q) return rows;
+  if (/^\d+$/.test(q)) return rows.filter((row) => String(row[1]).startsWith(q));
+  const terms = q.split(/\s+/);
+  const matches = (text: string | undefined) => !!text && terms.every((t) => normalize(text).includes(t));
+  return rows.filter((row) => matches(row[2]) || matches(row[8]));
 }
 
-export function randomPokemon(): number {
+export function randomPokemon(): string {
   return POKEMON[Math.floor(Math.random() * POKEMON.length)][0];
 }
 
-/** Inline style that draws the sprite of Pokémon `id` fitted into a `size`×`size` square. */
-export function spriteStyle(id: number, size: number): CSSProperties {
-  const { width, height } = pokemonSpriteSize(id);
-  const row = BY_ID.get(id);
-  const [x0, y0, x1, y1] = row ? row.slice(2, 6) as number[] : [0, 0, width - 1, height - 1];
+/** Inline style that draws Pokémon `key` fitted into a `size`×`size` square. */
+export function spriteStyle(key: string, size: number): CSSProperties {
+  const { width, height } = pokemonSpriteSize(key);
+  const row = pokemonRow(key);
+  const [x0, y0, x1, y1] = row ? [row[3], row[4], row[5], row[6]] : [0, 0, width - 1, height - 1];
   const boxW = x1 - x0 + 1;
   const boxH = y1 - y0 + 1;
   const scale = size / Math.max(boxW, boxH);
@@ -46,7 +53,7 @@ export function spriteStyle(id: number, size: number): CSSProperties {
   return {
     width: size,
     height: size,
-    backgroundImage: `url("${pokemonSpriteUrl(id)}")`,
+    backgroundImage: `url("${pokemonSpriteUrl(key)}")`,
     backgroundSize: `${width * scale}px ${height * scale}px`,
     backgroundPosition: `${left}px ${top}px`,
     backgroundRepeat: 'no-repeat',

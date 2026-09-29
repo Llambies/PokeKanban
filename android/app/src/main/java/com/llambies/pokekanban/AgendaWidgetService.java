@@ -89,8 +89,8 @@ public class AgendaWidgetService extends RemoteViewsService {
         private void showIcon(RemoteViews views, JSONObject item) {
             String icon = item.optString("icon", "");
             if (icon.equals("null")) icon = "";
-            int poke = PokeSprites.idOf(icon);
-            if (poke > 0) {
+            String poke = PokeSprites.keyOf(icon);
+            if (poke != null) {
                 int size = Math.round(18 * ctx.getResources().getDisplayMetrics().density);
                 Bitmap sprite = PokeSprites.bitmap(ctx, poke, size);
                 if (sprite == null && PokeSprites.fetch(ctx, poke)) sprite = PokeSprites.bitmap(ctx, poke, size);

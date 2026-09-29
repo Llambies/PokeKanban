@@ -19,7 +19,9 @@ Los datos son tuyos: se guardan en un archivo JSON en tu máquina, en tu cuenta 
 
 **Etiquetas y colores**
 - Etiquetas ilimitadas con **30 colores** (claro / normal / oscuro) e **icono**: 130+ iconos, cualquier emoji o
-  **cualquiera de los 1025 Pokémon** (iconos de [PokeAPI](https://pokeapi.co), búsqueda por nombre o número y uno al azar).
+  **cualquiera de los 1025 Pokémon y sus ~490 formas** (regionales de Alola, Galar, Hisui y Paldea, megaevoluciones,
+  Gigamax, Unown, Vivillon, Alcremie…), con iconos de [PokeAPI](https://pokeapi.co), búsqueda por nombre o número,
+  atajos por región o tipo de forma y uno al azar.
   Los mismos iconos sirven para los eventos del calendario, el widget de Android y sus notificaciones.
 - **Cabeceras de lista de color**, con opción de teñir toda la columna.
 - **Portadas** de tarjeta (franja o tarjeta completa, color o imagen por URL).
@@ -164,8 +166,9 @@ hay que desinstalar la versión anterior una vez).
 
 El widget usa los mismos iconos que la app: `npm run android:icons` convierte los iconos de Lucide que ofrece
 el selector (`src/lib/icons.tsx`) en vectores de Android (`android/app/src/main/res/drawable/lucide_*.xml`).
-Vuelve a ejecutarlo si añades iconos al selector. La lista de Pokémon (nombres y recorte de cada icono) se genera
-con `npm run pokemon:data` a partir de los datos de PokeAPI; ejecútalo cuando salgan Pokémon nuevos.
+Vuelve a ejecutarlo si añades iconos al selector. La lista de Pokémon y formas (nombres en español y recorte de cada
+icono, `shared/pokemon-data.js`) se genera con `npm run pokemon:data` a partir de los datos de PokeAPI; ejecútalo
+cuando salgan Pokémon nuevos.
 
 Pokémon y sus nombres son marcas de Nintendo, Game Freak y The Pokémon Company; los iconos proceden del
 repositorio de sprites de PokeAPI y se usan solo como iconos personales.

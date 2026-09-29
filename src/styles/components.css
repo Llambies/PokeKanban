@@ -180,6 +180,21 @@
   max-height: 228px;
 }
 
+.icon-picker__shortcuts {
+  gap: 4px;
+  margin: 0;
+}
+
+.icon-picker__shortcuts .chip {
+  padding: 2px 8px;
+}
+
+.chip.is-active {
+  border-color: var(--primary);
+  background: var(--primary-subtle);
+  color: var(--primary);
+}
+
 .icon-picker__credit {
   margin: 0;
   text-align: right;
