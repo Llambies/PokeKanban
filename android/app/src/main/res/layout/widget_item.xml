@@ -41,8 +41,8 @@
             <!-- The app's (Lucide) icon, or the emoji chosen for the event. -->
             <ImageView
                 android:id="@+id/item_icon"
-                android:layout_width="16dp"
-                android:layout_height="16dp"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
                 android:layout_marginEnd="6dp"
                 android:importantForAccessibility="no"
                 android:scaleType="fitCenter" />

@@ -45,6 +45,11 @@ public class PokeKanbanPlugin extends Plugin {
         Reminders.schedule(ctx);
         AgendaWidget.refreshAll(ctx);
         call.resolve();
+        // Pokémon icons: download them now so the widget and notifications have them offline.
+        new Thread(() -> {
+            PokeSprites.prefetch(ctx, Store.agenda(ctx).optJSONArray("items"), Store.reminders(ctx));
+            AgendaWidget.refreshAll(ctx);
+        }).start();
     }
 
     @PluginMethod

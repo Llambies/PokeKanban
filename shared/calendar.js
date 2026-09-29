@@ -309,7 +309,7 @@ const KIND_EMOJI = { event: '📅', birthday: '🎂', anniversary: '💞', deadl
 
 /** An emoji for an icon value ("lucide:Name" or an emoji), falling back to the kind's emoji. */
 export function iconEmoji(icon, kind) {
-  if (icon && !icon.startsWith('lucide:')) return icon;
+  if (icon && !icon.startsWith('lucide:') && !icon.startsWith('poke:')) return icon;
   if (icon && LUCIDE_EMOJI[icon.slice(7)]) return LUCIDE_EMOJI[icon.slice(7)];
   return KIND_EMOJI[kind] ?? '📅';
 }
@@ -371,6 +371,7 @@ export function collectReminders(data, fromMs, toMs, opts = {}) {
           title: `${iconEmoji(event.icon, event.kind)} ${event.title || 'Sin título'}`,
           body: eventDetail(event, occ, when),
           url: eventUrl(event.id, occ),
+          icon: event.icon ?? null,
         });
       }
     }

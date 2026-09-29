@@ -12,6 +12,13 @@ public class ReminderReceiver extends BroadcastReceiver {
         String id = intent.getStringExtra("id");
         if (id == null || Store.wasDelivered(ctx, id)) return;
         Store.markDelivered(ctx, id);
-        Notifications.show(ctx, id, intent.getStringExtra("title"), intent.getStringExtra("body"), intent.getStringExtra("url"));
+        Notifications.show(
+            ctx,
+            id,
+            intent.getStringExtra("title"),
+            intent.getStringExtra("body"),
+            intent.getStringExtra("url"),
+            intent.getStringExtra("icon")
+        );
     }
 }

@@ -33,6 +33,7 @@
 
 import { agenda, collectReminders, dayKeyAt } from '../shared/calendar.js';
 import { generateVapidKeys, sendPush } from './push.mjs';
+import { pokemonId, pokemonSpriteUrl } from '../shared/pokemon.js';
 
 const MAX_BODY = 50 * 1024 * 1024;
 const MAX_UPLOAD = 25 * 1024 * 1024;
@@ -319,7 +320,13 @@ export function createHandler({ storage, password = '', requirePassword = false,
       let sent = 0;
       if (data && from < now) {
         const due = collectReminders(data, from, now).slice(0, 20);
-        sent = await sendToAll(state, due.map((r) => ({ title: r.title, body: r.body, tag: r.id, url: r.url })));
+        sent = await sendToAll(
+          state,
+          due.map((r) => {
+            const poke = pokemonId(r.icon);
+            return { title: r.title, body: r.body, tag: r.id, url: r.url, ...(poke ? { icon: pokemonSpriteUrl(poke) } : {}) };
+          }),
+        );
       }
       await savePush();
       if (scheduler) {

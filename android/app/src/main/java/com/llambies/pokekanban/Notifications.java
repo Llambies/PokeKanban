@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import androidx.core.app.NotificationCompat;
@@ -46,6 +47,10 @@ final class Notifications {
     }
 
     static void show(Context ctx, String id, String title, String body, String route) {
+        show(ctx, id, title, body, route, null);
+    }
+
+    static void show(Context ctx, String id, String title, String body, String route, String icon) {
         if (!allowed(ctx)) return;
         createChannel(ctx);
         PendingIntent open = PendingIntent.getActivity(
@@ -64,6 +69,12 @@ final class Notifications {
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
             .setContentIntent(open);
+        // An event with a Pokémon as its icon shows it (if already cached: no network here).
+        int poke = PokeSprites.idOf(icon);
+        if (poke > 0) {
+            Bitmap sprite = PokeSprites.bitmap(ctx, poke, Math.round(64 * ctx.getResources().getDisplayMetrics().density));
+            if (sprite != null) builder.setLargeIcon(sprite);
+        }
         try {
             NotificationManagerCompat.from(ctx).notify(id.hashCode(), builder.build());
         } catch (SecurityException ignored) {

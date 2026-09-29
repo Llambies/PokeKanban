@@ -33,6 +33,7 @@ final class Reminders {
             intent.putExtra("title", reminder.optString("title", "PokeKanban"));
             intent.putExtra("body", reminder.optString("body", ""));
             intent.putExtra("url", reminder.optString("url", "#/calendar"));
+            intent.putExtra("icon", reminder.optString("icon", ""));
         }
         return PendingIntent.getBroadcast(ctx, 0, intent, flags | PendingIntent.FLAG_IMMUTABLE);
     }

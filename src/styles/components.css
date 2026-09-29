@@ -175,6 +175,23 @@
   box-shadow: inset 0 0 0 2px var(--primary);
 }
 
+.icon-grid--poke {
+  grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+  max-height: 228px;
+}
+
+.icon-picker__credit {
+  margin: 0;
+  text-align: right;
+}
+
+/* Pokémon icons (sprites cropped with background-position, see lib/pokemon.ts). */
+.poke-glyph {
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+}
+
 /* ---------------------------------------------------------- label editor */
 
 .label-editor__preview {

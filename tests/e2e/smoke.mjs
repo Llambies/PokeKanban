@@ -339,6 +339,18 @@ try {
   await waitSaved();
   const agendaApi = await (await fetch(`${base}api/agenda?days=14`)).json();
   check(Array.isArray(agendaApi.items) && agendaApi.items.some((i) => i.title === 'Gimnasio'), 'la API de agenda (widget) devuelve los eventos');
+  // Pokémon icons in the icon picker.
+  await page.locator('.cal-chip', { hasText: 'Gimnasio' }).first().click();
+  await page.waitForSelector('.event-modal');
+  await page.locator('.ev-icon-btn').click();
+  await page.locator('.popover [role=tab]', { hasText: 'Pokémon' }).click();
+  await page.fill('.popover .icon-picker input', 'pikachu');
+  check((await page.locator('.icon-grid--poke .icon-cell[title="#25 Pikachu"]').count()) === 1, 'el selector de iconos busca Pokémon');
+  await page.locator('.icon-grid--poke .icon-cell[title="#25 Pikachu"]').click();
+  check((await page.locator('.ev-icon-btn .poke-glyph').count()) === 1, 'el evento muestra el icono del Pokémon');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+
   // Android back button (the app calls window.pokekanbanBack): closes the innermost thing first.
   await page.locator('.cal-chip', { hasText: 'Gimnasio' }).first().click();
   await page.waitForSelector('.event-modal');

@@ -16,7 +16,8 @@
     "build:static": "tsc -b && vite build --mode static",
     "deploy:cloudflare": "npm run build && npx wrangler deploy",
     "dev:worker": "npm run build && wrangler dev",
-    "android:icons": "node scripts/android-icons.mjs"
+    "android:icons": "node scripts/android-icons.mjs",
+    "pokemon:data": "node scripts/pokemon-data.mjs"
   },
   "engines": {
     "node": ">=20.19"

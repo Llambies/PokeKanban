@@ -15,7 +15,8 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(message.title || 'PokeKanban', {
       body: message.body || '',
       tag: message.tag,
-      icon: 'icon-192.png',
+      // The event's Pokémon, if it has one as its icon.
+      icon: message.icon || 'icon-192.png',
       badge: 'badge-96.png',
       data: { url: message.url || '#/calendar' },
       timestamp: Date.now(),

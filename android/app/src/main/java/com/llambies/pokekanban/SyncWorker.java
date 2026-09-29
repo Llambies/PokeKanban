@@ -86,6 +86,7 @@ public class SyncWorker extends Worker {
             if (reminders != null) Store.saveReminders(ctx, reminders.toString());
             Store.setNeedsLogin(ctx, false);
             Reminders.schedule(ctx);
+            PokeSprites.prefetch(ctx, body.optJSONArray("items"), reminders);
             AgendaWidget.refreshAll(ctx);
             return Result.success();
         } catch (Exception e) {

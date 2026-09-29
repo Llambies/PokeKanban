@@ -34,6 +34,8 @@ export interface ReminderNotice {
   title: string;
   body: string;
   url: string;
+  /** The event's icon value ("lucide:…", "poke:25", an emoji) or null. */
+  icon?: string | null;
 }
 
 export function collectReminders(
