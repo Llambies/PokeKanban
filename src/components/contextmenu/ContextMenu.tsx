@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../../store/store';
 import { consumeEvent, useLayer } from '../../lib/layers';
+import { safeAreaInsets } from '../../lib/safeArea';
 import { closeContextMenu, useMenu, type MenuActionItem, type MenuItem } from './menuStore';
 
 const SUBMENU_DELAY = 110;
@@ -52,6 +53,10 @@ function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter, title }: 
     const height = el.offsetHeight;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+    // Keep clear of the status and navigation bars when drawn edge to edge.
+    const safe = safeAreaInsets();
+    const minTop = MARGIN + safe.top;
+    const maxBottom = vh - MARGIN - safe.bottom;
     let left: number;
     let top: number;
     if (anchor instanceof DOMRect) {
@@ -63,8 +68,9 @@ function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter, title }: 
       top = anchor.y;
       if (left + width > vw - MARGIN) left = Math.max(MARGIN, vw - width - MARGIN);
     }
-    if (top + height > vh - MARGIN) top = Math.max(MARGIN, vh - height - MARGIN);
-    setStyle({ left, top, maxHeight: vh - MARGIN * 2 });
+    if (top + height > maxBottom) top = maxBottom - height;
+    top = Math.max(minTop, top);
+    setStyle({ left, top, maxHeight: maxBottom - minTop });
     // Only on mount / anchor change: items can change while open (toggles) without jumping around.
   }, [anchor]);
 

@@ -881,7 +881,7 @@ kbd {
 .toasts {
   position: fixed;
   left: 16px;
-  bottom: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   z-index: 1100;
   display: flex;
   flex-direction: column;
@@ -1073,6 +1073,71 @@ kbd {
 
   .search {
     width: 160px;
+  }
+
+  /* Full-screen modals: keep their content out of the status and gesture bars. */
+  .modal-backdrop .modal {
+    padding-top: var(--safe-top);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+/* Phones: the top bar must fit in ~360px, so the search box shrinks to an icon that opens over it. */
+@media (max-width: 480px) {
+  .topbar {
+    gap: 2px;
+    padding-left: max(6px, env(safe-area-inset-left, 0px));
+    padding-right: max(6px, env(safe-area-inset-right, 0px));
+  }
+
+  .topbar__brand {
+    padding: 4px;
+  }
+
+  .header-btn {
+    padding: 0 6px;
+  }
+
+  .topbar__spacer {
+    min-width: 0;
+  }
+
+  .search {
+    flex: none;
+    width: 34px;
+    max-width: none;
+  }
+
+  .search__input {
+    padding: 0 0 0 32px;
+    cursor: pointer;
+  }
+
+  .search__input::placeholder {
+    color: transparent;
+  }
+
+  .search.is-focused {
+    position: absolute;
+    top: calc(var(--safe-top) + 8px);
+    left: 8px;
+    right: 8px;
+    z-index: 5;
+    width: auto;
+  }
+
+  .search.is-focused .search__input {
+    padding: 0 28px 0 32px;
+    background: var(--surface);
+    cursor: text;
+  }
+
+  .search.is-focused .search__input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .search__results {
+    width: 100%;
   }
 }
 

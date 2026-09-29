@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { createPortal } from 'react-dom';
 import { ChevronLeft, X } from 'lucide-react';
 import { consumeEvent, useLayer } from '../../lib/layers';
+import { safeAreaInsets } from '../../lib/safeArea';
 
 interface PopoverProps {
   anchor: HTMLElement | DOMRect | null;
@@ -28,17 +29,21 @@ export function Popover({ anchor, onClose, title, onBack, width = 304, className
       const rect = anchor instanceof DOMRect ? anchor : anchor.getBoundingClientRect();
       const vw = window.innerWidth;
       const vh = window.innerHeight;
+      // Keep clear of the status and navigation bars when drawn edge to edge.
+      const safe = safeAreaInsets();
+      const minTop = MARGIN + safe.top;
+      const maxBottom = vh - MARGIN - safe.bottom;
       const w = Math.min(width, vw - MARGIN * 2);
       const h = el.offsetHeight;
       let left = rect.left;
       if (left + w > vw - MARGIN) left = vw - w - MARGIN;
       left = Math.max(MARGIN, left);
       let top = rect.bottom + 6;
-      if (top + h > vh - MARGIN) {
+      if (top + h > maxBottom) {
         const above = rect.top - h - 6;
-        top = above >= MARGIN ? above : Math.max(MARGIN, vh - h - MARGIN);
+        top = above >= minTop ? above : Math.max(minTop, maxBottom - h);
       }
-      setStyle({ top, left, width: w, maxHeight: vh - MARGIN * 2 });
+      setStyle({ top, left, width: w, maxHeight: maxBottom - minTop });
     };
     place();
     const ro = new ResizeObserver(place);

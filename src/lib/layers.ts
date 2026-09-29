@@ -40,6 +40,14 @@ export function hasOpenLayers(): boolean {
   return stack.length > 0;
 }
 
+/** Closes the top-most overlay as Escape would (Android back button). */
+export function closeTopLayer(): boolean {
+  const top = stack[stack.length - 1];
+  if (!top) return false;
+  top.onEscape();
+  return true;
+}
+
 export function useLayer(onEscape: () => void, active = true): () => boolean {
   const handler = useRef(onEscape);
   handler.current = onEscape;

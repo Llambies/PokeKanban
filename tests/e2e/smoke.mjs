@@ -339,6 +339,15 @@ try {
   await waitSaved();
   const agendaApi = await (await fetch(`${base}api/agenda?days=14`)).json();
   check(Array.isArray(agendaApi.items) && agendaApi.items.some((i) => i.title === 'Gimnasio'), 'la API de agenda (widget) devuelve los eventos');
+  // Android back button (the app calls window.pokekanbanBack): closes the innermost thing first.
+  await page.locator('.cal-chip', { hasText: 'Gimnasio' }).first().click();
+  await page.waitForSelector('.event-modal');
+  check(await page.evaluate(() => window.pokekanbanBack()), 'atrás cierra el evento abierto');
+  await page.waitForTimeout(200);
+  check((await page.locator('.event-modal').count()) === 0 && page.url().includes('#/calendar'), 'y se queda en el calendario');
+  check(await page.evaluate(() => window.pokekanbanBack()), 'atrás desde el calendario vuelve al inicio');
+  await page.waitForSelector('.home-upcoming');
+  check((await page.evaluate(() => window.pokekanbanBack())) === false, 'en el inicio, atrás deja salir de la app');
   await page.goto(base);
   await page.waitForSelector('.home-upcoming');
   check((await page.locator('.home-upcoming .agenda-row').count()) > 0, 'el inicio muestra los próximos días');

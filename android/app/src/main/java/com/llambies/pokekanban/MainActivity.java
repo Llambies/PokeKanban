@@ -3,6 +3,7 @@ package com.llambies.pokekanban;
 import android.content.Intent;
 import android.os.Bundle;
 import android.webkit.WebView;
+import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.WebViewListener;
 import org.json.JSONObject;
@@ -25,6 +26,14 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         Notifications.createChannel(this);
         SyncWorker.schedulePeriodic(this);
+        // Back button / gesture: the web app closes what is open (menu, card, event…) or goes back
+        // to the home screen; only when there is nothing left the app goes to the background.
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                onBack();
+            }
+        });
         if (getBridge() == null) return;
         getBridge().addWebViewListener(new WebViewListener() {
             @Override
@@ -54,6 +63,20 @@ public class MainActivity extends BridgeActivity {
         super.onPause();
         // The app already sent its agenda; a later sync also picks up the saved state from the server.
         SyncWorker.runSoon(this, 30);
+    }
+
+    private void onBack() {
+        WebView webView = getBridge() == null ? null : getBridge().getWebView();
+        if (webView == null) {
+            moveTaskToBack(true);
+            return;
+        }
+        webView.evaluateJavascript("(window.pokekanbanBack ? window.pokekanbanBack() : null)", result -> {
+            if ("true".equals(result)) return;
+            // "null": a page without the app (e.g. the offline page).
+            if ("null".equals(result) && webView.canGoBack()) webView.goBack();
+            else moveTaskToBack(true);
+        });
     }
 
     private void showRoute(String route) {

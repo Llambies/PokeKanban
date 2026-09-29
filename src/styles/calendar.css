@@ -1184,9 +1184,16 @@
     border-radius: 0;
   }
 
+  .modal-backdrop .event-modal {
+    padding-bottom: 0;
+    /* "hidden" would make the modal the scroll container and break the sticky footer. */
+    overflow: visible;
+  }
+
   .event-modal__foot {
     position: sticky;
     bottom: 0;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
 
   .agenda-row {
