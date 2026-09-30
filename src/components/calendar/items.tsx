@@ -37,7 +37,7 @@ function dragProps(item: CalItem) {
   };
 }
 
-export function itemStyle(item: CalItem): CSSProperties | undefined {
+export function itemStyle(item: Pick<CalItem, 'colorKey'>): CSSProperties | undefined {
   const color = getColor(item.colorKey);
   if (!color) return undefined;
   return { '--item-bg': color.bg, '--item-fg': color.fg } as CSSProperties;

@@ -563,6 +563,8 @@
 
 .cal-week__grid {
   position: relative;
+  /* Dragging on the grid creates events: it shouldn't select text. */
+  user-select: none;
 }
 
 .cal-week__hours {
@@ -688,6 +690,59 @@
   display: block;
   font-weight: 700;
   opacity: 1;
+}
+
+/* Top and bottom edges of events: drag them to change when they start or end. */
+.cal-block__resize {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.cal-block__resize--top {
+  top: 0;
+}
+
+.cal-block__resize--bottom {
+  bottom: 0;
+}
+
+.cal-block__resize::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 16px;
+  height: 2px;
+  margin-left: -8px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0;
+}
+
+.cal-block__resize--top::after {
+  top: 2px;
+}
+
+.cal-block__resize--bottom::after {
+  bottom: 2px;
+}
+
+.cal-block:hover .cal-block__resize::after {
+  opacity: 0.5;
+}
+
+html.is-cal-resizing,
+html.is-cal-resizing * {
+  cursor: ns-resize !important;
+}
+
+@media (hover: none) {
+  .cal-block__resize {
+    display: none;
+  }
 }
 
 /* ----------------------------------------------------------------- filter */

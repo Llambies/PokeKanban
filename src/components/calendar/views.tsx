@@ -2,17 +2,18 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import type { AppData } from '../../types';
 import { useStore } from '../../store/store';
-import { usePrefs } from '../../store/ui';
+import { usePrefs, useUI } from '../../store/ui';
 import { editOccurrence } from '../../store/calendar';
 import { getData, updateCard } from '../../store/store';
 import { monthMatrix, toDateKey, todayKey, WEEKDAYS_SHORT } from '../../lib/dates';
 import {
-  calendarItems, dayMonthText, droppedRange, itemTitle, KIND_INFO, KIND_ORDER, timeRangeText, toTotal, type CalItem,
+  calendarItems, dayMonthText, droppedRange, fromTotal, itemTitle, KIND_INFO, KIND_ORDER, resizedRange, selectedRange, timeRangeText,
+  toTotal, type CalItem,
 } from '../../lib/calendar';
 import { dayToKey, keyToDay, weekdayOf, WEEKDAY_NAMES } from '../../../shared/calendar.js';
 import { IconGlyph } from '../common/LabelChip';
 import { openContextMenu, wantsNativeMenu } from '../contextmenu/menuStore';
-import { askScope, dayMenu, moveItemToDay, newEvent, newEventMenu, openItem } from './actions';
+import { askScope, dayMenu, moveItemToDay, newEvent, newEventBetween, newEventMenu, openItem } from './actions';
 import { AgendaRow, drag, DRAG_TYPE, ItemChip, itemMenu, itemStyle } from './items';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -201,8 +202,10 @@ const HOUR_PX = 48;
 const SNAP = 15;
 /** Shortest block (minutes), so short items can still be clicked. */
 const MIN_BLOCK = 20;
+/** Blocks shorter than this (45 min) only get the bottom resize edge. */
+const RESIZE_TOP_MIN_PX = 36;
 
-/** Week blocks are dragged without the browser's copy under the pointer: the preview shows where they land. */
+/** Week blocks are dragged without the browser's copy under the pointer: the ghost block shows where they land. */
 const EMPTY_DRAG_IMAGE =
   typeof Image === 'undefined' ? null : Object.assign(new Image(), { src: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' });
 
@@ -263,41 +266,141 @@ function layoutDay(items: CalItem[]): Placed[] {
   return placed;
 }
 
-async function dropAtTime(item: CalItem, day: string, minutes: number): Promise<void> {
-  if (item.allDay) return moveItemToDay(item, item.day, day);
-  // The dragged piece's top lands on the drop point.
-  const { start, end } = droppedRange(item, day, minutes);
-  if (start === item.start) return;
+/** Saves a new start and end for a timed item (repeating events ask which occurrences). */
+async function saveRange(item: CalItem, start: string, end: string | null, verb: 'move' | 'edit'): Promise<void> {
+  if (start === item.start && end === item.end) return;
   if (item.type === 'card' && item.card) {
     updateCard(item.card.id, { due: start });
     return;
   }
   const event = item.event && getData().events[item.event.id];
   if (!event) return;
-  const scope = await askScope(event, 'move');
+  const scope = await askScope(event, verb);
   if (!scope) return;
   editOccurrence(event.id, item.occ, { start, end }, scope);
 }
 
-/** Where a dragged item would land in the week grid. */
-interface DropPreview {
-  item: CalItem;
+async function dropAtTime(item: CalItem, day: string, minutes: number): Promise<void> {
+  if (item.allDay) return moveItemToDay(item, item.day, day);
+  // The dragged piece's top lands on the drop point.
+  const { start, end } = droppedRange(item, day, minutes);
+  return saveRange(item, start, end, 'move');
+}
+
+/** Only events of the "event" kind have an end, so only they can be resized. */
+const canResize = (item: CalItem) => item.type === 'event' && item.event?.kind === 'event';
+
+/** Block drawn over the week grid while moving, resizing or creating: where it goes and its new time. */
+interface Ghost {
+  /** Item being changed (null while creating an event). */
+  item: CalItem | null;
   day: string;
-  /** Top of the dragged piece, in minutes of `day`. */
-  minutes: number;
-  /** Already dropped: repeating events are waiting for "which occurrences". */
+  /** Minutes of `day` covered by the block. */
+  top: number;
+  bottom: number;
+  /** New start and end, shown on the block. */
+  start: string;
+  end: string | null;
+  /** Released: waiting for "which occurrences" (repeating events) or for the editor (new events). */
   pending?: boolean;
 }
 
-/** Drag state of the week view: the highlighted cell, the drop preview and the block being moved. */
+function moveGhost(item: CalItem, day: string, minutes: number): Ghost {
+  const { start, end } = droppedRange(item, day, minutes);
+  const endTotal = end ? toTotal(end) : toTotal(start) + defaultLength(item);
+  return { item, day, start, end, top: minutes, bottom: Math.min(24 * 60, Math.max(endTotal - keyToDay(day) * 1440, minutes + MIN_BLOCK)) };
+}
+
+function rangeGhost(item: CalItem | null, day: string, { start, end }: { start: string; end: string }): Ghost {
+  const dayStart = keyToDay(day) * 1440;
+  const top = Math.max(0, toTotal(start) - dayStart);
+  return { item, day, start, end, top, bottom: Math.min(24 * 60, Math.max(toTotal(end) - dayStart, top + MIN_BLOCK)) };
+}
+
+/** A resize handle is being dragged: the block must not start a move. */
+let resizing = false;
+
+/** Stops the click that follows a pointer gesture (it would open the item or a new event). */
+function swallowNextClick(): void {
+  const stop = (e: MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+  };
+  window.addEventListener('click', stop, { capture: true, once: true });
+  window.setTimeout(() => window.removeEventListener('click', stop, { capture: true }));
+}
+
+/**
+ * Follows a mouse or pen gesture that starts on a week column: `move` gets the minutes of the day under the
+ * pointer once it has moved a few pixels, the grid scrolls near its edges, and `end` says whether to save
+ * (released after moving) or not (a plain click, Esc or a cancelled pointer).
+ */
+function trackPointer(e: React.PointerEvent<HTMLElement>, column: HTMLElement, on: { move(minutes: number): void; end(save: boolean): void }): void {
+  const scroller = column.closest<HTMLElement>('.cal-week__scroll');
+  const { pointerId, clientX: x0, clientY: y0 } = e;
+  let y = y0;
+  let state: 'pressed' | 'dragging' | 'cancelled' = 'pressed';
+  let frame = 0;
+  const report = () => on.move(((y - column.getBoundingClientRect().top) / HOUR_PX) * 60);
+  const move = (ev: PointerEvent) => {
+    if (ev.pointerId !== pointerId || state === 'cancelled') return;
+    y = ev.clientY;
+    if (state === 'pressed' && Math.abs(ev.clientX - x0) < 4 && Math.abs(y - y0) < 4) return;
+    state = 'dragging';
+    report();
+  };
+  const autoScroll = () => {
+    if (state === 'dragging' && scroller) {
+      const { top, bottom } = scroller.getBoundingClientRect();
+      const edge = 40;
+      const by = y < top + edge ? y - top - edge : y > bottom - edge ? y - bottom + edge : 0;
+      if (by) {
+        scroller.scrollTop += Math.sign(by) * Math.min(20, Math.ceil(Math.abs(by) / 3));
+        report();
+      }
+    }
+    frame = requestAnimationFrame(autoScroll);
+  };
+  const key = (ev: KeyboardEvent) => {
+    if (ev.key !== 'Escape') return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (state === 'cancelled') return;
+    state = 'cancelled';
+    on.end(false);
+  };
+  const finish = (ev: PointerEvent) => {
+    if (ev.pointerId !== pointerId) return;
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', finish);
+    window.removeEventListener('pointercancel', finish);
+    window.removeEventListener('keydown', key, true);
+    cancelAnimationFrame(frame);
+    if (state !== 'pressed') swallowNextClick();
+    if (state !== 'cancelled') on.end(state === 'dragging' && ev.type === 'pointerup');
+  };
+  try {
+    e.currentTarget.setPointerCapture(pointerId);
+  } catch {
+    // The window listeners follow the pointer anyway.
+  }
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', finish);
+  window.addEventListener('pointercancel', finish);
+  window.addEventListener('keydown', key, true);
+  frame = requestAnimationFrame(autoScroll);
+}
+
+/** Drag state of the week view: the highlighted cell, the ghost block and the block being changed. */
 function useWeekDrag() {
   const [over, setOver] = useState<string | null>(null);
-  const [preview, setPreview] = useState<DropPreview | null>(null);
+  const [ghost, setGhost] = useState<Ghost | null>(null);
   const [dragKey, setDragKey] = useState<string | null>(null);
   const actions = useMemo(() => {
-    const clearPreview = () => setPreview((p) => (p?.pending ? p : null));
+    const clearGhost = () => setGhost((g) => (g?.pending ? g : null));
     return {
       setOver,
+      /** A block starts being moved (HTML drag and drop, so it also reaches the all-day row). */
       start(item: CalItem) {
         // Not during dragstart itself: changing the dragged element then can cancel the drag.
         window.setTimeout(() => drag.item === item && setDragKey(item.key));
@@ -305,29 +408,75 @@ function useWeekDrag() {
       end() {
         setOver(null);
         setDragKey(null);
-        clearPreview();
+        clearGhost();
       },
       /** Pointer over a day column; `minutes` is where a timed item would start (null for all-day items). */
       hover(day: string, minutes: number | null) {
         setOver(day);
         const item = drag.item;
-        if (!item || minutes === null) return clearPreview();
-        setPreview((p) => (p?.pending || (p?.item === item && p.day === day && p.minutes === minutes) ? p : { item, day, minutes }));
+        if (!item || minutes === null) return clearGhost();
+        setGhost((g) => (g?.pending || (g?.item === item && g.day === day && g.top === minutes) ? g : moveGhost(item, day, minutes)));
       },
       leave() {
         setOver(null);
-        clearPreview();
+        clearGhost();
       },
       drop(item: CalItem, day: string, minutes: number) {
         setOver(null);
         setDragKey(null);
-        // The preview stays until the move is done (or cancelled in the dialog).
-        if (!item.allDay) setPreview({ item, day, minutes, pending: true });
-        void dropAtTime(item, day, minutes).finally(() => setPreview(null));
+        // The ghost stays until the move is done (or cancelled in the dialog).
+        if (!item.allDay) setGhost({ ...moveGhost(item, day, minutes), pending: true });
+        void dropAtTime(item, day, minutes).finally(() => setGhost(null));
+      },
+      /** Drags the top or bottom edge of an event to change when it starts or ends. */
+      resize(e: React.PointerEvent<HTMLElement>, item: CalItem, edge: 'start' | 'end') {
+        const column = e.currentTarget.closest<HTMLElement>('.cal-week__col');
+        if (e.button !== 0 || e.pointerType === 'touch' || !column) return;
+        const original = { start: item.start, end: item.end ?? fromTotal(toTotal(item.start) + defaultLength(item)) };
+        let range: { start: string; end: string } | null = null;
+        resizing = true;
+        trackPointer(e, column, {
+          move(minutes) {
+            range = resizedRange(original, item.day, edge, minutes, SNAP);
+            document.documentElement.classList.add('is-cal-resizing');
+            setDragKey(item.key);
+            setGhost(rangeGhost(item, item.day, range));
+          },
+          end(save) {
+            resizing = false;
+            document.documentElement.classList.remove('is-cal-resizing');
+            setDragKey(null);
+            if (!save || !range) return setGhost(null);
+            setGhost((g) => g && { ...g, pending: true });
+            void saveRange(item, range.start, range.end, 'edit').finally(() => setGhost(null));
+          },
+        });
+      },
+      /** Drags on an empty part of a column to choose when a new event starts and ends. */
+      create(e: React.PointerEvent<HTMLElement>, day: string) {
+        if (e.button !== 0 || e.pointerType === 'touch' || e.target !== e.currentTarget) return;
+        const from = ((e.clientY - e.currentTarget.getBoundingClientRect().top) / HOUR_PX) * 60;
+        let range: { start: string; end: string } | null = null;
+        trackPointer(e, e.currentTarget, {
+          move(minutes) {
+            range = selectedRange(day, from, minutes, SNAP);
+            setGhost(rangeGhost(null, day, range));
+          },
+          end(save) {
+            if (!save || !range) return setGhost(null);
+            // The ghost stays while the editor is open.
+            setGhost((g) => g && { ...g, pending: true });
+            newEventBetween(range.start, range.end);
+          },
+        });
+      },
+      /** The editor of a new event was closed. */
+      closeNew() {
+        setGhost((g) => (g?.pending && !g.item ? null : g));
       },
     };
   }, []);
-  return { over, preview, dragKey, actions };
+  return { over, ghost, dragKey, actions };
 }
 
 type WeekDrag = ReturnType<typeof useWeekDrag>['actions'];
@@ -336,8 +485,12 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
   const monday = keyToDay(anchor) - (weekdayOf(keyToDay(anchor)) - 1);
   const days = Array.from({ length: 7 }, (_, i) => dayToKey(monday + i));
   const items = useCalendarItems(days[0], days[6]);
-  const { over, preview, dragKey, actions: dnd } = useWeekDrag();
-  const moving = dragKey ?? (preview?.pending ? preview.item.key : null);
+  const { over, ghost, dragKey, actions: dnd } = useWeekDrag();
+  const moving = dragKey ?? (ghost?.pending && ghost.item ? ghost.item.key : null);
+  const drafting = useUI((s) => s.eventDraft !== null);
+  useEffect(() => {
+    if (!drafting) dnd.closeNew();
+  }, [drafting, dnd]);
   const scroller = useRef<HTMLDivElement>(null);
   const now = useNow();
   const today = todayKey();
@@ -390,7 +543,7 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
               items={(items.get(day) ?? []).filter((it) => !it.allDay)}
               nowMinutes={day === today ? nowMinutes : null}
               over={over === day}
-              preview={preview?.day === day ? preview : null}
+              ghost={ghost?.day === day ? ghost : null}
               moving={moving}
               dnd={dnd}
             />
@@ -424,30 +577,45 @@ function minutesAt(e: React.MouseEvent | React.DragEvent, el: HTMLElement, offse
   return Math.max(0, Math.min(24 * 60 - SNAP, minutes));
 }
 
-/** Ghost of the dragged item where it would land, with its new time. */
-function PreviewBlock({ preview: { item, day, minutes } }: { preview: DropPreview }) {
-  const { start, end } = droppedRange(item, day, minutes);
+/** Top or bottom edge of a block, dragged to change when the event starts or ends. */
+function ResizeHandle({ edge, onPointerDown }: { edge: 'start' | 'end'; onPointerDown: (e: React.PointerEvent<HTMLElement>) => void }) {
+  return (
+    <span
+      className={`cal-block__resize cal-block__resize--${edge === 'start' ? 'top' : 'bottom'}`}
+      onPointerDown={onPointerDown}
+      // Otherwise the block would start moving (HTML drag and drop) instead.
+      onMouseDown={(e) => e.preventDefault()}
+      title={edge === 'start' ? 'Arrastra para cambiar el inicio' : 'Arrastra para cambiar el final'}
+    />
+  );
+}
+
+/** Ghost of the item being moved, resized or created, with its new time. */
+function GhostBlock({ ghost: { item, day, top, bottom, start, end } }: { ghost: Ghost }) {
   const dayStart = keyToDay(day) * 1440;
-  const endTotal = end ? toTotal(end) : toTotal(start) + defaultLength(item);
-  const bottom = Math.min(24 * 60, Math.max(endTotal - dayStart, minutes + MIN_BLOCK));
   const className = [
     'cal-block cal-block--preview',
-    item.type === 'card' ? 'cal-block--card' : '',
+    item?.type === 'card' ? 'cal-block--card' : '',
     start.slice(0, 10) < day ? 'is-cont-start' : '',
-    endTotal > dayStart + 24 * 60 ? 'is-cont-end' : '',
+    end && toTotal(end) > dayStart + 24 * 60 ? 'is-cont-end' : '',
   ].join(' ');
   return (
-    <div className={className} style={{ ...itemStyle(item), top: (minutes / 60) * HOUR_PX, height: ((bottom - minutes) / 60) * HOUR_PX }} aria-hidden="true">
+    <div
+      className={className}
+      // A new event gets the default color of events.
+      style={{ ...itemStyle(item ?? { colorKey: KIND_INFO.event.color }), top: (top / 60) * HOUR_PX, height: ((bottom - top) / 60) * HOUR_PX }}
+      aria-hidden="true"
+    >
       <span className="cal-block__time">{timeRangeText(start, end)}</span>
       <span className="cal-block__title">
-        {item.icon && <IconGlyph icon={item.icon} size={12} />} {itemTitle(item)}
+        {item?.icon && <IconGlyph icon={item.icon} size={12} />} {item ? itemTitle(item) : 'Nuevo evento'}
       </span>
     </div>
   );
 }
 
-function WeekColumn({ day, items, nowMinutes, over, preview, moving, dnd }: {
-  day: string; items: CalItem[]; nowMinutes: number | null; over: boolean; preview: DropPreview | null; moving: string | null; dnd: WeekDrag;
+function WeekColumn({ day, items, nowMinutes, over, ghost, moving, dnd }: {
+  day: string; items: CalItem[]; nowMinutes: number | null; over: boolean; ghost: Ghost | null; moving: string | null; dnd: WeekDrag;
 }) {
   const placed = useMemo(() => layoutDay(items), [items]);
   const timeAt = (e: React.MouseEvent) => {
@@ -464,6 +632,7 @@ function WeekColumn({ day, items, nowMinutes, over, preview, moving, dnd }: {
   return (
     <div
       className={`cal-week__col ${over ? 'is-drop' : ''}`}
+      onPointerDown={(e) => dnd.create(e, day)}
       onClick={(e) => {
         if (e.target === e.currentTarget) newEvent('event', day, timeAt(e));
       }}
@@ -498,6 +667,10 @@ function WeekColumn({ day, items, nowMinutes, over, preview, moving, dnd }: {
           className={`cal-block ${item.type === 'card' ? 'cal-block--card' : ''} ${item.done ? 'is-done' : ''} ${item.overdue ? 'is-overdue' : ''} ${item.first ? '' : 'is-cont-start'} ${item.last ? '' : 'is-cont-end'} ${moving === item.key ? 'is-dragging' : ''}`}
           style={{ ...itemStyle(item), top, height, left: `calc(${(col / cols) * 100}% + 1px)`, width: `calc(${100 / cols}% - 3px)` }}
           onDragStart={(e) => {
+            if (resizing) {
+              e.preventDefault();
+              return;
+            }
             drag.item = item;
             drag.offset = ((e.clientY - e.currentTarget.getBoundingClientRect().top) / HOUR_PX) * 60;
             e.dataTransfer.setData(DRAG_TYPE, item.key);
@@ -521,9 +694,16 @@ function WeekColumn({ day, items, nowMinutes, over, preview, moving, dnd }: {
             {item.time}
             {item.endTime ? `–${item.endTime}` : ''}
           </span>
+          {canResize(item) && (
+            <>
+              {/* No top edge on short blocks: there'd be nowhere left to grab them to move them. */}
+              {item.first && height >= RESIZE_TOP_MIN_PX && <ResizeHandle edge="start" onPointerDown={(e) => dnd.resize(e, item, 'start')} />}
+              {item.last && <ResizeHandle edge="end" onPointerDown={(e) => dnd.resize(e, item, 'end')} />}
+            </>
+          )}
         </div>
       ))}
-      {preview && <PreviewBlock preview={preview} />}
+      {ghost && <GhostBlock ghost={ghost} />}
       {nowMinutes !== null && <div className="cal-week__now" style={{ top: (nowMinutes / 60) * HOUR_PX }} />}
     </div>
   );

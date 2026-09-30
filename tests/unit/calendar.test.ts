@@ -3,7 +3,7 @@ import {
   agenda, collectReminders, dayKeyAt, occurrenceIndex, occurrenceRange, occurrences, wallToUtc, whenText, yearsAt,
 } from '../../shared/calendar.js';
 import type { AppData, CalendarEvent, Recurrence } from '../../src/types';
-import { calendarItems, droppedRange, EMPTY_CAL_FILTER, timeRangeText } from '../../src/lib/calendar';
+import { calendarItems, droppedRange, EMPTY_CAL_FILTER, resizedRange, selectedRange, timeRangeText } from '../../src/lib/calendar';
 import * as S from '../../src/store/store';
 import * as C from '../../src/store/calendar';
 import { emptyData, makeCard, makeEvent, sampleData } from '../../src/store/factories';
@@ -167,6 +167,30 @@ describe('calendar view items', () => {
     expect(timeRangeText('2026-09-30T23:00', '2026-10-01T00:00')).toBe('23:00 – 00:00');
     expect(timeRangeText('2026-09-30T23:00', '2026-10-01T00:30')).toBe('mié 23:00 – jue 00:30');
     expect(timeRangeText('2026-09-30T09:00', null)).toBe('09:00');
+  });
+
+  it('resizes an event from its edges, snapping and keeping at least one step', () => {
+    const meeting = { start: '2026-09-30T10:00', end: '2026-09-30T11:00' };
+    expect(resizedRange(meeting, '2026-09-30', 'end', 12 * 60 + 20)).toEqual({ start: '2026-09-30T10:00', end: '2026-09-30T12:15' });
+    expect(resizedRange(meeting, '2026-09-30', 'start', 8 * 60 + 53)).toEqual({ start: '2026-09-30T09:00', end: '2026-09-30T11:00' });
+    // Past the other edge: it stays 15 minutes long.
+    expect(resizedRange(meeting, '2026-09-30', 'end', 9 * 60)).toEqual({ start: '2026-09-30T10:00', end: '2026-09-30T10:15' });
+    expect(resizedRange(meeting, '2026-09-30', 'start', 13 * 60)).toEqual({ start: '2026-09-30T10:45', end: '2026-09-30T11:00' });
+    // The bottom edge can reach midnight, not further.
+    expect(resizedRange(meeting, '2026-09-30', 'end', 25 * 60)).toEqual({ start: '2026-09-30T10:00', end: '2026-10-01T00:00' });
+    // Multi-day events: the last piece's bottom edge only moves the end, on that day.
+    const trip = { start: '2026-09-28T18:00', end: '2026-09-30T10:00' };
+    expect(resizedRange(trip, '2026-09-30', 'end', 12 * 60)).toEqual({ start: '2026-09-28T18:00', end: '2026-09-30T12:00' });
+    expect(resizedRange(trip, '2026-09-30', 'end', 0)).toEqual({ start: '2026-09-28T18:00', end: '2026-09-30T00:15' });
+    expect(resizedRange(trip, '2026-09-28', 'start', 23 * 60 + 50)).toEqual({ start: '2026-09-28T23:45', end: '2026-09-30T10:00' });
+  });
+
+  it('selects the time of a new event by dragging, in either direction', () => {
+    expect(selectedRange('2026-09-30', 10 * 60 + 5, 11 * 60 + 20)).toEqual({ start: '2026-09-30T10:00', end: '2026-09-30T11:30' });
+    expect(selectedRange('2026-09-30', 11 * 60 + 20, 10 * 60 + 5)).toEqual({ start: '2026-09-30T10:00', end: '2026-09-30T11:30' });
+    expect(selectedRange('2026-09-30', 9 * 60, 9 * 60 + 3)).toEqual({ start: '2026-09-30T09:00', end: '2026-09-30T09:15' });
+    // Dragged past the bottom of the day: it ends at midnight.
+    expect(selectedRange('2026-09-30', 23 * 60, 26 * 60)).toEqual({ start: '2026-09-30T23:00', end: '2026-10-01T00:00' });
   });
 });
 

@@ -364,6 +364,37 @@ try {
   await page.waitForTimeout(200);
   check((await meeting.locator('.cal-block__time').textContent()) === '11:30–12:30', 'al soltar, el evento cambia de hora');
   check((await page.locator('.cal-block--preview').count()) === 0, 'y la vista previa desaparece');
+  // Resize from the bottom edge: one hour longer.
+  await page.locator('.cal-week__scroll').evaluate((el) => (el.scrollTop = 11 * 48));
+  await meeting.hover();
+  const edge = await meeting.locator('.cal-block__resize--bottom').boundingBox();
+  await page.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2 + 48, { steps: 6 });
+  const resizeTime = await page.locator('.cal-block--preview .cal-block__time').textContent();
+  check(resizeTime === '11:30 – 13:30', `al estirar el borde se ve la hora de fin nueva (${resizeTime})`);
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+  check((await meeting.locator('.cal-block__time').textContent()) === '11:30–13:30', 'al soltar, el evento dura una hora más');
+  check((await page.locator('.event-modal').count()) === 0, 'estirar no abre el evento');
+  // Create by dragging on an empty part of the day: 14:00–15:30.
+  const column = await meeting.locator('xpath=..').boundingBox();
+  const cx = column.x + column.width / 2;
+  await page.mouse.move(cx, column.y + 14 * 48 + 4);
+  await page.mouse.down();
+  await page.mouse.move(cx, column.y + 15 * 48 + 20, { steps: 6 });
+  const newTime = await page.locator('.cal-block--preview .cal-block__time').textContent();
+  check(newTime === '14:00 – 15:30', `al arrastrar en un hueco se ve la duración del evento nuevo (${newTime})`);
+  await page.mouse.up();
+  await page.waitForSelector('.event-modal');
+  const times = [await page.locator('.event-modal input[aria-label="Hora"]').inputValue(), await page.locator('.event-modal input[aria-label="Hora de fin"]').inputValue()];
+  check(times.join('–') === '14:00–15:30', `el editor se abre con esas horas (${times.join('–')})`);
+  await page.fill('#event-title', 'Café con Marta');
+  await page.locator('.event-modal__foot button', { hasText: 'Crear' }).click();
+  await page.waitForTimeout(200);
+  const coffee = page.locator('.cal-block', { hasText: 'Café con Marta' });
+  check((await coffee.locator('.cal-block__time').textContent()) === '14:00–15:30', 'y el evento se crea con esa duración');
+  check((await page.locator('.cal-block--preview').count()) === 0, 'sin bloque fantasma al cerrar el editor');
   await page.locator('.cal-toolbar__views button', { hasText: 'Mes' }).click();
   // Pokémon icons in the icon picker.
   await page.locator('.cal-chip', { hasText: 'Gimnasio' }).first().click();

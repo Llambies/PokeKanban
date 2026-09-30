@@ -55,6 +55,11 @@ export function newEvent(kind: EventKind, dayKey = todayKey(), time?: string): v
   useUI.setState({ eventDraft: makeEvent(kind, start, { end }) });
 }
 
+/** Opens the editor for a new event with its start and end already chosen (dragging on the week grid). */
+export function newEventBetween(start: string, end: string): void {
+  useUI.setState({ eventDraft: makeEvent('event', start, { end }) });
+}
+
 export function newEventMenu(dayKey: string, time?: string): MenuItem[] {
   return KIND_ORDER.map((kind) => ({
     label: KIND_INFO[kind].label,

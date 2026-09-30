@@ -336,6 +336,29 @@ export function droppedRange(item: Pick<CalItem, 'start' | 'end' | 'first' | 'da
   return { start: fromTotal(start), end: item.end ? fromTotal(start + toTotal(item.end) - toTotal(item.start)) : null };
 }
 
+const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+/**
+ * New range when the top (`start`) or bottom (`end`) edge of the piece drawn on `day` is dragged to `minutes`
+ * of that day (snapped to `step`). The edge stays on that day and the event keeps at least `step` minutes.
+ */
+export function resizedRange(
+  range: { start: string; end: string }, day: string, edge: 'start' | 'end', minutes: number, step = 15,
+): { start: string; end: string } {
+  const dayStart = keyToDay(day) * 1440;
+  const at = dayStart + Math.round(minutes / step) * step;
+  if (edge === 'start') return { start: fromTotal(clamp(at, dayStart, Math.min(toTotal(range.end), dayStart + 1440) - step)), end: range.end };
+  return { start: range.start, end: fromTotal(clamp(at, Math.max(toTotal(range.start), dayStart) + step, dayStart + 1440)) };
+}
+
+/** Range selected by dragging on `day` from the slot at `from` minutes to the one at `to` (both included). */
+export function selectedRange(day: string, from: number, to: number, step = 15): { start: string; end: string } {
+  const slot = (minutes: number) => clamp(Math.floor(minutes / step) * step, 0, 1440 - step);
+  const dayStart = keyToDay(day) * 1440;
+  const [a, b] = [slot(from), slot(to)].sort((x, y) => x - y);
+  return { start: fromTotal(dayStart + a), end: fromTotal(dayStart + b + step) };
+}
+
 /** "10:15 – 11:15", with the weekdays when it ends another day: "vie 22:00 – sáb 01:30". */
 export function timeRangeText(start: string, end: string | null): string {
   const from = start.slice(11, 16);
