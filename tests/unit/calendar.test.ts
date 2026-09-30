@@ -3,6 +3,7 @@ import {
   agenda, collectReminders, dayKeyAt, occurrenceIndex, occurrenceRange, occurrences, wallToUtc, whenText, yearsAt,
 } from '../../shared/calendar.js';
 import type { AppData, CalendarEvent, Recurrence } from '../../src/types';
+import { calendarItems, EMPTY_CAL_FILTER } from '../../src/lib/calendar';
 import * as S from '../../src/store/store';
 import * as C from '../../src/store/calendar';
 import { emptyData, makeCard, makeEvent, sampleData } from '../../src/store/factories';
@@ -123,6 +124,30 @@ describe('agenda', () => {
     expect(items[1].color).toBe('#4BCE97');
     // The widget draws the app's icons: the item's own or its kind's.
     expect(items.map((i) => i.icon)).toEqual(['lucide:Flag', 'lucide:Calendar', 'lucide:Calendar']);
+  });
+});
+
+describe('calendar view items', () => {
+  const now = new Date(2026, 8, 1);
+
+  it('splits timed multi-day events into pieces sorted with the other timed items', () => {
+    const trip = ev('2026-09-28T18:00', null, { title: 'Viaje', end: '2026-09-30T10:00' });
+    const breakfast = ev('2026-09-29T08:00', null, { title: 'Desayuno' });
+    const lunch = ev('2026-09-28T14:00', null, { title: 'Comida' });
+    const holidays = ev('2026-09-28', null, { title: 'Vacaciones', end: '2026-09-29' });
+    const byDay = calendarItems(dataWith([trip, breakfast, lunch, holidays]), '2026-09-28', '2026-09-30', EMPTY_CAL_FILTER, now);
+    const pieces = (day: string) => (byDay.get(day) ?? []).map((i) => `${i.title}${i.first ? '' : '<'}${i.last ? '' : '>'}`);
+    expect(pieces('2026-09-28')).toEqual(['Vacaciones>', 'Comida', 'Viaje>']);
+    // Pieces that continue from the day before start at midnight, before the rest.
+    expect(pieces('2026-09-29')).toEqual(['Vacaciones<', 'Viaje<>', 'Desayuno']);
+    expect(pieces('2026-09-30')).toEqual(['Viaje<']);
+  });
+
+  it('keeps timed events that end at midnight on their own day', () => {
+    const party = ev('2026-09-28T23:00', null, { title: 'Fiesta', end: '2026-09-29T00:00' });
+    const byDay = calendarItems(dataWith([party]), '2026-09-28', '2026-09-29', EMPTY_CAL_FILTER, now);
+    expect(byDay.get('2026-09-28')?.map((i) => [i.multiDay, i.time, i.endTime])).toEqual([[false, '23:00', '00:00']]);
+    expect(byDay.get('2026-09-29')).toBeUndefined();
   });
 });
 

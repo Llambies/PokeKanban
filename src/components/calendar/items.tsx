@@ -41,15 +41,16 @@ export function itemStyle(item: CalItem): CSSProperties | undefined {
 
 /** Compact chip for month cells and all-day rows. */
 export function ItemChip({ item, showTime = true }: { item: CalItem; showTime?: boolean }) {
-  const filled = item.allDay || item.multiDay;
+  // Only all-day items are drawn as bars; timed ones (even over several days) look like the rest.
+  const filled = item.allDay;
   const className = [
     'cal-chip',
     filled ? 'cal-chip--filled' : 'cal-chip--timed',
     item.type === 'card' ? 'cal-chip--card' : '',
     item.done ? 'is-done' : '',
     item.overdue ? 'is-overdue' : '',
-    !item.first ? 'is-cont-start' : '',
-    !item.last ? 'is-cont-end' : '',
+    filled && !item.first ? 'is-cont-start' : '',
+    filled && !item.last ? 'is-cont-end' : '',
   ].join(' ');
   return (
     <div

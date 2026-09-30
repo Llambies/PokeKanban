@@ -227,7 +227,8 @@ export function calendarItems(data: AppData, fromKey: string, toKey: string, fil
   for (const event of Object.values(data.events)) {
     if (!eventPasses(event, filter, query)) continue;
     const checkable = isCheckable(event);
-    const span = spanDays(event);
+    // A timed event that ends exactly at midnight doesn't reach into that day.
+    const span = Math.max(0, spanDays(event) - (event.start.includes('T') && event.end?.endsWith('T00:00') ? 1 : 0));
     for (const occ of occurrences(event, fromKey, toKey)) {
       const { start, end } = occurrenceRange(event, occ);
       const done = checkable && event.done.includes(occ);
@@ -295,12 +296,14 @@ export function calendarItems(data: AppData, fromKey: string, toKey: string, fil
     }
   }
 
+  // Timed pieces that continue from the day before start at midnight.
+  const sortTime = (it: CalItem) => (it.first ? it.time : '');
   for (const list of byDay.values()) {
     list.sort(
       (a, b) =>
         Number(!a.allDay) - Number(!b.allDay) ||
-        Number(!a.multiDay) - Number(!b.multiDay) ||
-        a.time.localeCompare(b.time) ||
+        Number(!(a.allDay && a.multiDay)) - Number(!(b.allDay && b.multiDay)) ||
+        sortTime(a).localeCompare(sortTime(b)) ||
         Number(a.type === 'card') - Number(b.type === 'card') ||
         a.title.localeCompare(b.title),
     );

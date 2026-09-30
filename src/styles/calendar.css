@@ -644,6 +644,17 @@
   box-shadow: inset 3px 0 0 var(--danger), 0 0 0 1px var(--surface);
 }
 
+/* Pieces of an event that continues from the day before or into the next one. */
+.cal-block.is-cont-start {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.cal-block.is-cont-end {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 .cal-block__title {
   display: flex;
   align-items: center;

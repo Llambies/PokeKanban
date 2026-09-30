@@ -207,14 +207,23 @@ interface Placed {
 }
 
 const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+/** Minutes since 1970-01-01 of a local "YYYY-MM-DDTHH:MM" value. */
+const toTotal = (value: string) => keyToDay(value) * 1440 + toMinutes(value.slice(11, 16));
+const fromTotal = (total: number) => `${dayToKey(Math.floor(total / 1440))}T${pad(Math.floor((total % 1440) / 60))}:${pad(total % 60)}`;
+
+/** Minutes of the day covered by an item's block: multi-day pieces run from or to midnight. */
+function blockRange(item: CalItem): { start: number; end: number } {
+  const start = item.first ? toMinutes(item.time) : 0;
+  let end: number;
+  if (!item.last || (item.end && item.end.slice(0, 10) !== item.day)) end = 24 * 60;
+  else if (item.endTime) end = toMinutes(item.endTime);
+  else end = item.type === 'event' && item.event?.kind === 'event' ? start + 60 : start + 30;
+  return { start, end: Math.max(end, start + 20) };
+}
 
 function layoutDay(items: CalItem[]): Placed[] {
   const blocks = items
-    .map((item) => {
-      const start = toMinutes(item.time);
-      const end = item.endTime && item.end?.slice(0, 10) === item.day ? toMinutes(item.endTime) : item.type === 'event' && item.event?.kind === 'event' ? start + 60 : start + 30;
-      return { item, start, end: Math.max(end, start + 20) };
-    })
+    .map((item) => ({ item, ...blockRange(item) }))
     .sort((a, b) => a.start - b.start || b.end - a.end);
   const placed: Placed[] = [];
   let cluster: { block: (typeof blocks)[number]; col: number }[] = [];
@@ -256,16 +265,14 @@ async function dropAtTime(item: CalItem, day: string, minutes: number): Promise<
   }
   const event = item.event && getData().events[item.event.id];
   if (!event) return;
-  const duration = item.end ? (keyToDay(item.end) - keyToDay(item.start)) * 1440 + toMinutes(item.end.slice(11, 16)) - toMinutes(item.time) : 0;
-  const startTotal = minutes;
-  const endTotal = startTotal + duration;
-  const endDay = dayToKey(keyToDay(day) + Math.floor(endTotal / 1440));
-  const endTime = `${pad(Math.floor((endTotal % 1440) / 60))}:${pad(endTotal % 60)}`;
-  const start = `${day}T${time}`;
+  // The dragged piece's top lands on the drop point (later pieces of multi-day events start at midnight).
+  const pieceStart = item.first ? toTotal(item.start) : keyToDay(item.day) * 1440;
+  const startTotal = toTotal(item.start) + keyToDay(day) * 1440 + minutes - pieceStart;
+  const start = fromTotal(startTotal);
   if (start === item.start) return;
   const scope = await askScope(event, 'move');
   if (!scope) return;
-  editOccurrence(event.id, item.occ, { start, end: item.end ? `${endDay}T${endTime}` : null }, scope);
+  editOccurrence(event.id, item.occ, { start, end: item.end ? fromTotal(startTotal + toTotal(item.end) - toTotal(item.start)) : null }, scope);
 }
 
 export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day: string) => void }) {
@@ -306,7 +313,7 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
       <div className="cal-week__allday">
         <div className="cal-week__gutter small muted">todo el día</div>
         {days.map((day) => (
-          <WeekAllDay key={day} day={day} items={(items.get(day) ?? []).filter((it) => it.allDay || it.multiDay)} over={over === `all:${day}`} setOver={setOver} />
+          <WeekAllDay key={day} day={day} items={(items.get(day) ?? []).filter((it) => it.allDay)} over={over === `all:${day}`} setOver={setOver} />
         ))}
       </div>
       <div className="cal-week__scroll" ref={scroller}>
@@ -322,7 +329,7 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
             <WeekColumn
               key={day}
               day={day}
-              items={(items.get(day) ?? []).filter((it) => !it.allDay && !it.multiDay)}
+              items={(items.get(day) ?? []).filter((it) => !it.allDay)}
               nowMinutes={day === today ? nowMinutes : null}
               over={over === day}
               setOver={setOver}
@@ -397,7 +404,7 @@ function WeekColumn({ day, items, nowMinutes, over, setOver }: {
           role="button"
           tabIndex={0}
           draggable
-          className={`cal-block ${item.type === 'card' ? 'cal-block--card' : ''} ${item.done ? 'is-done' : ''} ${item.overdue ? 'is-overdue' : ''}`}
+          className={`cal-block ${item.type === 'card' ? 'cal-block--card' : ''} ${item.done ? 'is-done' : ''} ${item.overdue ? 'is-overdue' : ''} ${item.first ? '' : 'is-cont-start'} ${item.last ? '' : 'is-cont-end'}`}
           style={{ ...itemStyle(item), top, height, left: `calc(${(col / cols) * 100}% + 1px)`, width: `calc(${100 / cols}% - 3px)` }}
           onDragStart={(e) => {
             drag.item = item;
