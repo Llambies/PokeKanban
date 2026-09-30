@@ -4,7 +4,7 @@ import {
   WEEKDAY_NAMES, weekdayOf, yearsAt,
 } from '../../shared/calendar.js';
 import { normalize } from './icons';
-import { parseLocal } from './dates';
+import { parseLocal, WEEKDAYS_SHORT } from './dates';
 
 export interface KindInfo {
   label: string;
@@ -315,4 +315,34 @@ export function calendarItems(data: AppData, fromKey: string, toKey: string, fil
 export function itemTitle(item: Pick<CalItem, 'title' | 'years' | 'event'>): string {
   if (!item.years || !item.event) return item.title;
   return item.event.kind === 'birthday' ? `${item.title} (${item.years})` : `${item.title} · ${item.years} años`;
+}
+
+/* ------------------------------------------------------------ drag & drop */
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** Minutes since 1970-01-01 of a local "YYYY-MM-DDTHH:MM" value. */
+export const toTotal = (value: string) => keyToDay(value) * 1440 + Number(value.slice(11, 13)) * 60 + Number(value.slice(14, 16));
+export const fromTotal = (total: number) =>
+  `${dayToKey(Math.floor(total / 1440))}T${pad2(Math.floor((total % 1440) / 60))}:${pad2(total % 60)}`;
+
+/**
+ * New start and end of a timed item whose piece drawn on `item.day` is dropped with its top on `day` at
+ * `minutes` (later pieces of multi-day events start at midnight). The duration stays the same.
+ */
+export function droppedRange(item: Pick<CalItem, 'start' | 'end' | 'first' | 'day'>, day: string, minutes: number): { start: string; end: string | null } {
+  const pieceStart = item.first ? toTotal(item.start) : keyToDay(item.day) * 1440;
+  const start = toTotal(item.start) + keyToDay(day) * 1440 + minutes - pieceStart;
+  return { start: fromTotal(start), end: item.end ? fromTotal(start + toTotal(item.end) - toTotal(item.start)) : null };
+}
+
+/** "10:15 – 11:15", with the weekdays when it ends another day: "vie 22:00 – sáb 01:30". */
+export function timeRangeText(start: string, end: string | null): string {
+  const from = start.slice(11, 16);
+  if (!end) return from;
+  const days = keyToDay(end) - keyToDay(start);
+  // Ending at midnight still reads as the same day.
+  if (days === 0 || (days === 1 && end.endsWith('T00:00'))) return `${from} – ${end.slice(11, 16)}`;
+  const weekday = (value: string) => WEEKDAYS_SHORT[weekdayOf(keyToDay(value)) - 1];
+  return `${weekday(start)} ${from} – ${weekday(end)} ${end.slice(11, 16)}`;
 }

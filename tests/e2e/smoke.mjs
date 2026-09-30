@@ -344,6 +344,27 @@ try {
   await waitSaved();
   const agendaApi = await (await fetch(`${base}api/agenda?days=14`)).json();
   check(Array.isArray(agendaApi.items) && agendaApi.items.some((i) => i.title === 'Gimnasio'), 'la API de agenda (widget) devuelve los eventos');
+  // Week view: dragging a block shows the new time before dropping it (sample meeting: in 4 days, 10:00–11:00).
+  const inFour = new Date();
+  inFour.setDate(inFour.getDate() + 4);
+  const meetingDay = `${inFour.getFullYear()}-${String(inFour.getMonth() + 1).padStart(2, '0')}-${String(inFour.getDate()).padStart(2, '0')}`;
+  await page.goto(`${base}#/calendar/week?d=${meetingDay}`);
+  const meeting = page.locator('.cal-block', { hasText: 'Reunión de proyecto' });
+  await meeting.scrollIntoViewIfNeeded();
+  const box = await meeting.boundingBox();
+  // Grabbed 10px below its top and moved 72px down (1 h 30 min): the block's top, not the pointer, sets the time.
+  await page.mouse.move(box.x + box.width / 2, box.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + 30, { steps: 3 });
+  await page.mouse.move(box.x + box.width / 2, box.y + 82, { steps: 5 });
+  const previewTime = await page.locator('.cal-block--preview .cal-block__time').textContent();
+  check(previewTime === '11:30 – 12:30', `al arrastrar en la semana se ve la hora nueva (${previewTime})`);
+  check((await page.locator('.cal-block.is-dragging', { hasText: 'Reunión de proyecto' }).count()) === 1, 'el bloque original se atenúa mientras se arrastra');
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+  check((await meeting.locator('.cal-block__time').textContent()) === '11:30–12:30', 'al soltar, el evento cambia de hora');
+  check((await page.locator('.cal-block--preview').count()) === 0, 'y la vista previa desaparece');
+  await page.locator('.cal-toolbar__views button', { hasText: 'Mes' }).click();
   // Pokémon icons in the icon picker.
   await page.locator('.cal-chip', { hasText: 'Gimnasio' }).first().click();
   await page.waitForSelector('.event-modal');

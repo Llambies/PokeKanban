@@ -9,8 +9,11 @@ import { openContextMenu, wantsNativeMenu } from '../contextmenu/menuStore';
 import { cardMenu } from '../contextmenu/menus';
 import { eventMenu, openItem, toggleItemDone } from './actions';
 
-/** Item being dragged (dataTransfer can't be read during dragover). */
-export const drag: { item: CalItem | null } = { item: null };
+/**
+ * Item being dragged (dataTransfer can't be read during dragover) and, for week blocks, the minutes between
+ * the top of the block and the point where it was grabbed.
+ */
+export const drag: { item: CalItem | null; offset: number } = { item: null, offset: 0 };
 export const DRAG_TYPE = 'application/x-pokekanban-calitem';
 
 export function itemMenu(e: React.MouseEvent, item: CalItem): void {
@@ -24,6 +27,7 @@ function dragProps(item: CalItem) {
     draggable: true,
     onDragStart: (e: React.DragEvent) => {
       drag.item = item;
+      drag.offset = 0;
       e.dataTransfer.setData(DRAG_TYPE, item.key);
       e.dataTransfer.effectAllowed = 'move';
     },

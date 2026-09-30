@@ -54,7 +54,8 @@ Los datos son tuyos: se guardan en un archivo JSON en tu máquina, en tu cuenta 
 - **Avisos** por evento (a la hora, 5 min, 1 h, 1 día, 1 semana antes o personalizados) y, si quieres, de las
   tarjetas con fecha de vencimiento.
 - Vistas **Mes** (con panel del día), **Semana** (rejilla por horas) y **Agenda**; las tarjetas con fecha de
-  los tableros también aparecen. Arrastra para cambiar de día u hora, clic derecho para cambiar color, icono,
+  los tableros también aparecen. Arrastra para cambiar de día u hora (en la semana se ve la hora nueva antes
+  de soltar), clic derecho para cambiar color, icono,
   etiquetas, avisos, moverlo o borrarlo. Filtros por tipo, etiqueta y texto. «Próximos días» en el inicio.
 - **Notificaciones**: *Calendario → Ajustes → Activar notificaciones* en cada dispositivo (Chrome, Edge,
   Firefox, Android; en iPhone hay que añadir antes la web a la pantalla de inicio). El servidor las envía a su

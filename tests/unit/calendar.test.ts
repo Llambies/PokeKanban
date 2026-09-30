@@ -3,7 +3,7 @@ import {
   agenda, collectReminders, dayKeyAt, occurrenceIndex, occurrenceRange, occurrences, wallToUtc, whenText, yearsAt,
 } from '../../shared/calendar.js';
 import type { AppData, CalendarEvent, Recurrence } from '../../src/types';
-import { calendarItems, EMPTY_CAL_FILTER } from '../../src/lib/calendar';
+import { calendarItems, droppedRange, EMPTY_CAL_FILTER, timeRangeText } from '../../src/lib/calendar';
 import * as S from '../../src/store/store';
 import * as C from '../../src/store/calendar';
 import { emptyData, makeCard, makeEvent, sampleData } from '../../src/store/factories';
@@ -148,6 +148,25 @@ describe('calendar view items', () => {
     const byDay = calendarItems(dataWith([party]), '2026-09-28', '2026-09-29', EMPTY_CAL_FILTER, now);
     expect(byDay.get('2026-09-28')?.map((i) => [i.multiDay, i.time, i.endTime])).toEqual([[false, '23:00', '00:00']]);
     expect(byDay.get('2026-09-29')).toBeUndefined();
+  });
+
+  it('computes the new time of a dragged block, keeping the duration', () => {
+    const meeting = { start: '2026-09-28T10:00', end: '2026-09-28T11:30', first: true, day: '2026-09-28' };
+    expect(droppedRange(meeting, '2026-09-30', 14 * 60 + 15)).toEqual({ start: '2026-09-30T14:15', end: '2026-09-30T15:45' });
+    expect(droppedRange(meeting, '2026-09-30', 23 * 60)).toEqual({ start: '2026-09-30T23:00', end: '2026-10-01T00:30' });
+    // Cards have no end.
+    const card = { start: '2026-09-28T09:00', end: null, first: true, day: '2026-09-28' };
+    expect(droppedRange(card, '2026-09-27', 8 * 60)).toEqual({ start: '2026-09-27T08:00', end: null });
+    // Later pieces of multi-day events start at midnight: moving one moves the whole event.
+    const trip = { start: '2026-09-28T18:00', end: '2026-09-30T10:00', first: false, day: '2026-09-29' };
+    expect(droppedRange(trip, '2026-09-29', 60)).toEqual({ start: '2026-09-28T19:00', end: '2026-09-30T11:00' });
+  });
+
+  it('describes the new time while dragging', () => {
+    expect(timeRangeText('2026-09-30T14:15', '2026-09-30T15:45')).toBe('14:15 – 15:45');
+    expect(timeRangeText('2026-09-30T23:00', '2026-10-01T00:00')).toBe('23:00 – 00:00');
+    expect(timeRangeText('2026-09-30T23:00', '2026-10-01T00:30')).toBe('mié 23:00 – jue 00:30');
+    expect(timeRangeText('2026-09-30T09:00', null)).toBe('09:00');
   });
 });
 

@@ -6,7 +6,9 @@ import { usePrefs } from '../../store/ui';
 import { editOccurrence } from '../../store/calendar';
 import { getData, updateCard } from '../../store/store';
 import { monthMatrix, toDateKey, todayKey, WEEKDAYS_SHORT } from '../../lib/dates';
-import { calendarItems, dayMonthText, itemTitle, KIND_INFO, KIND_ORDER, type CalItem } from '../../lib/calendar';
+import {
+  calendarItems, dayMonthText, droppedRange, itemTitle, KIND_INFO, KIND_ORDER, timeRangeText, toTotal, type CalItem,
+} from '../../lib/calendar';
 import { dayToKey, keyToDay, weekdayOf, WEEKDAY_NAMES } from '../../../shared/calendar.js';
 import { IconGlyph } from '../common/LabelChip';
 import { openContextMenu, wantsNativeMenu } from '../contextmenu/menuStore';
@@ -197,6 +199,12 @@ function MonthDay(props: {
 
 const HOUR_PX = 48;
 const SNAP = 15;
+/** Shortest block (minutes), so short items can still be clicked. */
+const MIN_BLOCK = 20;
+
+/** Week blocks are dragged without the browser's copy under the pointer: the preview shows where they land. */
+const EMPTY_DRAG_IMAGE =
+  typeof Image === 'undefined' ? null : Object.assign(new Image(), { src: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' });
 
 interface Placed {
   item: CalItem;
@@ -207,9 +215,8 @@ interface Placed {
 }
 
 const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
-/** Minutes since 1970-01-01 of a local "YYYY-MM-DDTHH:MM" value. */
-const toTotal = (value: string) => keyToDay(value) * 1440 + toMinutes(value.slice(11, 16));
-const fromTotal = (total: number) => `${dayToKey(Math.floor(total / 1440))}T${pad(Math.floor((total % 1440) / 60))}:${pad(total % 60)}`;
+/** Minutes drawn for an item without an end time. */
+const defaultLength = (item: CalItem) => (item.type === 'event' && item.event?.kind === 'event' ? 60 : 30);
 
 /** Minutes of the day covered by an item's block: multi-day pieces run from or to midnight. */
 function blockRange(item: CalItem): { start: number; end: number } {
@@ -217,8 +224,8 @@ function blockRange(item: CalItem): { start: number; end: number } {
   let end: number;
   if (!item.last || (item.end && item.end.slice(0, 10) !== item.day)) end = 24 * 60;
   else if (item.endTime) end = toMinutes(item.endTime);
-  else end = item.type === 'event' && item.event?.kind === 'event' ? start + 60 : start + 30;
-  return { start, end: Math.max(end, start + 20) };
+  else end = start + defaultLength(item);
+  return { start, end: Math.max(end, start + MIN_BLOCK) };
 }
 
 function layoutDay(items: CalItem[]): Placed[] {
@@ -257,29 +264,80 @@ function layoutDay(items: CalItem[]): Placed[] {
 }
 
 async function dropAtTime(item: CalItem, day: string, minutes: number): Promise<void> {
-  const time = `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
   if (item.allDay) return moveItemToDay(item, item.day, day);
+  // The dragged piece's top lands on the drop point.
+  const { start, end } = droppedRange(item, day, minutes);
+  if (start === item.start) return;
   if (item.type === 'card' && item.card) {
-    updateCard(item.card.id, { due: `${day}T${time}` });
+    updateCard(item.card.id, { due: start });
     return;
   }
   const event = item.event && getData().events[item.event.id];
   if (!event) return;
-  // The dragged piece's top lands on the drop point (later pieces of multi-day events start at midnight).
-  const pieceStart = item.first ? toTotal(item.start) : keyToDay(item.day) * 1440;
-  const startTotal = toTotal(item.start) + keyToDay(day) * 1440 + minutes - pieceStart;
-  const start = fromTotal(startTotal);
-  if (start === item.start) return;
   const scope = await askScope(event, 'move');
   if (!scope) return;
-  editOccurrence(event.id, item.occ, { start, end: item.end ? fromTotal(startTotal + toTotal(item.end) - toTotal(item.start)) : null }, scope);
+  editOccurrence(event.id, item.occ, { start, end }, scope);
 }
+
+/** Where a dragged item would land in the week grid. */
+interface DropPreview {
+  item: CalItem;
+  day: string;
+  /** Top of the dragged piece, in minutes of `day`. */
+  minutes: number;
+  /** Already dropped: repeating events are waiting for "which occurrences". */
+  pending?: boolean;
+}
+
+/** Drag state of the week view: the highlighted cell, the drop preview and the block being moved. */
+function useWeekDrag() {
+  const [over, setOver] = useState<string | null>(null);
+  const [preview, setPreview] = useState<DropPreview | null>(null);
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const actions = useMemo(() => {
+    const clearPreview = () => setPreview((p) => (p?.pending ? p : null));
+    return {
+      setOver,
+      start(item: CalItem) {
+        // Not during dragstart itself: changing the dragged element then can cancel the drag.
+        window.setTimeout(() => drag.item === item && setDragKey(item.key));
+      },
+      end() {
+        setOver(null);
+        setDragKey(null);
+        clearPreview();
+      },
+      /** Pointer over a day column; `minutes` is where a timed item would start (null for all-day items). */
+      hover(day: string, minutes: number | null) {
+        setOver(day);
+        const item = drag.item;
+        if (!item || minutes === null) return clearPreview();
+        setPreview((p) => (p?.pending || (p?.item === item && p.day === day && p.minutes === minutes) ? p : { item, day, minutes }));
+      },
+      leave() {
+        setOver(null);
+        clearPreview();
+      },
+      drop(item: CalItem, day: string, minutes: number) {
+        setOver(null);
+        setDragKey(null);
+        // The preview stays until the move is done (or cancelled in the dialog).
+        if (!item.allDay) setPreview({ item, day, minutes, pending: true });
+        void dropAtTime(item, day, minutes).finally(() => setPreview(null));
+      },
+    };
+  }, []);
+  return { over, preview, dragKey, actions };
+}
+
+type WeekDrag = ReturnType<typeof useWeekDrag>['actions'];
 
 export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day: string) => void }) {
   const monday = keyToDay(anchor) - (weekdayOf(keyToDay(anchor)) - 1);
   const days = Array.from({ length: 7 }, (_, i) => dayToKey(monday + i));
   const items = useCalendarItems(days[0], days[6]);
-  const [over, setOver] = useState<string | null>(null);
+  const { over, preview, dragKey, actions: dnd } = useWeekDrag();
+  const moving = dragKey ?? (preview?.pending ? preview.item.key : null);
   const scroller = useRef<HTMLDivElement>(null);
   const now = useNow();
   const today = todayKey();
@@ -313,7 +371,7 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
       <div className="cal-week__allday">
         <div className="cal-week__gutter small muted">todo el día</div>
         {days.map((day) => (
-          <WeekAllDay key={day} day={day} items={(items.get(day) ?? []).filter((it) => it.allDay)} over={over === `all:${day}`} setOver={setOver} />
+          <WeekAllDay key={day} day={day} items={(items.get(day) ?? []).filter((it) => it.allDay)} over={over === `all:${day}`} setOver={dnd.setOver} />
         ))}
       </div>
       <div className="cal-week__scroll" ref={scroller}>
@@ -332,7 +390,9 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
               items={(items.get(day) ?? []).filter((it) => !it.allDay)}
               nowMinutes={day === today ? nowMinutes : null}
               over={over === day}
-              setOver={setOver}
+              preview={preview?.day === day ? preview : null}
+              moving={moving}
+              dnd={dnd}
             />
           ))}
         </div>
@@ -357,19 +417,49 @@ function WeekAllDay({ day, items, over, setOver }: { day: string; items: CalItem
   );
 }
 
-function minutesAt(e: React.MouseEvent | React.DragEvent, el: HTMLElement): number {
+/** Minutes of the day at the pointer (minus `offset`), snapped to the grid. */
+function minutesAt(e: React.MouseEvent | React.DragEvent, el: HTMLElement, offset = 0): number {
   const y = e.clientY - el.getBoundingClientRect().top;
-  const minutes = Math.round(((y / HOUR_PX) * 60) / SNAP) * SNAP;
+  const minutes = Math.round(((y / HOUR_PX) * 60 - offset) / SNAP) * SNAP;
   return Math.max(0, Math.min(24 * 60 - SNAP, minutes));
 }
 
-function WeekColumn({ day, items, nowMinutes, over, setOver }: {
-  day: string; items: CalItem[]; nowMinutes: number | null; over: boolean; setOver: (d: string | null) => void;
+/** Ghost of the dragged item where it would land, with its new time. */
+function PreviewBlock({ preview: { item, day, minutes } }: { preview: DropPreview }) {
+  const { start, end } = droppedRange(item, day, minutes);
+  const dayStart = keyToDay(day) * 1440;
+  const endTotal = end ? toTotal(end) : toTotal(start) + defaultLength(item);
+  const bottom = Math.min(24 * 60, Math.max(endTotal - dayStart, minutes + MIN_BLOCK));
+  const className = [
+    'cal-block cal-block--preview',
+    item.type === 'card' ? 'cal-block--card' : '',
+    start.slice(0, 10) < day ? 'is-cont-start' : '',
+    endTotal > dayStart + 24 * 60 ? 'is-cont-end' : '',
+  ].join(' ');
+  return (
+    <div className={className} style={{ ...itemStyle(item), top: (minutes / 60) * HOUR_PX, height: ((bottom - minutes) / 60) * HOUR_PX }} aria-hidden="true">
+      <span className="cal-block__time">{timeRangeText(start, end)}</span>
+      <span className="cal-block__title">
+        {item.icon && <IconGlyph icon={item.icon} size={12} />} {itemTitle(item)}
+      </span>
+    </div>
+  );
+}
+
+function WeekColumn({ day, items, nowMinutes, over, preview, moving, dnd }: {
+  day: string; items: CalItem[]; nowMinutes: number | null; over: boolean; preview: DropPreview | null; moving: string | null; dnd: WeekDrag;
 }) {
   const placed = useMemo(() => layoutDay(items), [items]);
   const timeAt = (e: React.MouseEvent) => {
     const minutes = Math.floor(minutesAt(e, e.currentTarget as HTMLElement) / 30) * 30;
     return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+  };
+  /** Where the dragged item's block would start if dropped here (it keeps the point where it was grabbed). */
+  const dropMinutes = (e: React.DragEvent, item: CalItem) => {
+    const minutes = minutesAt(e, e.currentTarget as HTMLElement, drag.offset);
+    // Back over its own slot: keep the exact time, even if it's off the 15-minute grid.
+    const own = blockRange(item).start;
+    return day === item.day && minutes === Math.round(own / SNAP) * SNAP ? own : minutes;
   };
   return (
     <div
@@ -385,17 +475,18 @@ function WeekColumn({ day, items, nowMinutes, over, setOver }: {
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
         e.preventDefault();
-        setOver(day);
+        e.dataTransfer.dropEffect = 'move';
+        const item = drag.item;
+        dnd.hover(day, item && !item.allDay ? dropMinutes(e, item) : null);
       }}
       onDragLeave={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(null);
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) dnd.leave();
       }}
       onDrop={(e) => {
         e.preventDefault();
-        setOver(null);
         const item = drag.item;
         drag.item = null;
-        if (item) void dropAtTime(item, day, minutesAt(e, e.currentTarget));
+        if (item) dnd.drop(item, day, item.allDay ? 0 : dropMinutes(e, item));
       }}
     >
       {placed.map(({ item, top, height, col, cols }) => (
@@ -404,15 +495,19 @@ function WeekColumn({ day, items, nowMinutes, over, setOver }: {
           role="button"
           tabIndex={0}
           draggable
-          className={`cal-block ${item.type === 'card' ? 'cal-block--card' : ''} ${item.done ? 'is-done' : ''} ${item.overdue ? 'is-overdue' : ''} ${item.first ? '' : 'is-cont-start'} ${item.last ? '' : 'is-cont-end'}`}
+          className={`cal-block ${item.type === 'card' ? 'cal-block--card' : ''} ${item.done ? 'is-done' : ''} ${item.overdue ? 'is-overdue' : ''} ${item.first ? '' : 'is-cont-start'} ${item.last ? '' : 'is-cont-end'} ${moving === item.key ? 'is-dragging' : ''}`}
           style={{ ...itemStyle(item), top, height, left: `calc(${(col / cols) * 100}% + 1px)`, width: `calc(${100 / cols}% - 3px)` }}
           onDragStart={(e) => {
             drag.item = item;
+            drag.offset = ((e.clientY - e.currentTarget.getBoundingClientRect().top) / HOUR_PX) * 60;
             e.dataTransfer.setData(DRAG_TYPE, item.key);
             e.dataTransfer.effectAllowed = 'move';
+            if (EMPTY_DRAG_IMAGE) e.dataTransfer.setDragImage(EMPTY_DRAG_IMAGE, 0, 0);
+            dnd.start(item);
           }}
           onDragEnd={() => {
             drag.item = null;
+            dnd.end();
           }}
           onClick={() => openItem(item)}
           onKeyDown={(e) => e.key === 'Enter' && openItem(item)}
@@ -428,6 +523,7 @@ function WeekColumn({ day, items, nowMinutes, over, setOver }: {
           </span>
         </div>
       ))}
+      {preview && <PreviewBlock preview={preview} />}
       {nowMinutes !== null && <div className="cal-week__now" style={{ top: (nowMinutes / 60) * HOUR_PX }} />}
     </div>
   );

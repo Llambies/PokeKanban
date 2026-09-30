@@ -670,6 +670,26 @@
   opacity: 0.85;
 }
 
+/* Dragging in the week: the block fades where it was and a preview with the new time shows where it lands. */
+.cal-block.is-dragging {
+  opacity: 0.35;
+}
+
+.cal-block--preview {
+  z-index: 4;
+  left: 1px;
+  width: calc(100% - 3px);
+  box-shadow: var(--shadow-overlay), 0 0 0 1px var(--surface);
+  pointer-events: none;
+  transition: top 80ms ease-out, height 80ms ease-out;
+}
+
+.cal-block--preview .cal-block__time {
+  display: block;
+  font-weight: 700;
+  opacity: 1;
+}
+
 /* ----------------------------------------------------------------- filter */
 
 .cal-filter,
