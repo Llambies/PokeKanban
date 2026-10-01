@@ -1,24 +1,33 @@
 import type { CSSProperties } from 'react';
 import { POKEMON, type PokemonRow } from '../../shared/pokemon-data.js';
-import { POKEMON_PREFIX, pokemonKey, pokemonRow, pokemonSpriteSize, pokemonSpriteUrl } from '../../shared/pokemon.js';
+import {
+  baseKey, isShiny, POKEMON_PREFIX, pokemonKey, pokemonRow, pokemonSpriteBox, pokemonSpriteSize, pokemonSpriteUrl, SHINY_SUFFIX,
+} from '../../shared/pokemon.js';
 import { normalize } from './icons';
 
 /**
  * Pokémon icons: an icon value "poke:<key>" shows that Pokémon's (or form's) PokeAPI image, cropped to
  * the box the sprite really covers (see scripts/pokemon-data.mjs) so it reads well at small sizes.
+ * "poke:<key>:s" is its shiny version.
  */
-export { pokemonKey, type PokemonRow };
+export { baseKey, isShiny, pokemonKey, type PokemonRow };
 
 export const POKEMON_ROWS = POKEMON;
 export const SPECIES_COUNT = POKEMON.filter((row) => row[0] === String(row[1])).length;
 export const FORMS_COUNT = POKEMON.length - SPECIES_COUNT;
 
-export function pokemonIconValue(key: string): string {
-  return POKEMON_PREFIX + key;
+/** Sprite key of `key` in its normal or shiny version. */
+export function withShiny(key: string, shiny: boolean): string {
+  return baseKey(key) + (shiny ? SHINY_SUFFIX : '');
+}
+
+export function pokemonIconValue(key: string, shiny = isShiny(key)): string {
+  return POKEMON_PREFIX + withShiny(key, shiny);
 }
 
 export function pokemonName(key: string): string {
-  return pokemonRow(key)?.[2] ?? `#${key}`;
+  const name = pokemonRow(key)?.[2] ?? `#${baseKey(key)}`;
+  return isShiny(key) ? `${name} shiny` : name;
 }
 
 export function isForm(row: PokemonRow): boolean {
@@ -33,7 +42,7 @@ export function searchPokemon(query: string, includeForms = true): PokemonRow[] 
   if (/^\d+$/.test(q)) return rows.filter((row) => String(row[1]).startsWith(q));
   const terms = q.split(/\s+/);
   const matches = (text: string | undefined) => !!text && terms.every((t) => normalize(text).includes(t));
-  return rows.filter((row) => matches(row[2]) || matches(row[8]));
+  return rows.filter((row) => matches(row[2]) || matches(row[12]));
 }
 
 export function randomPokemon(): string {
@@ -43,8 +52,7 @@ export function randomPokemon(): string {
 /** Inline style that draws Pokémon `key` fitted into a `size`×`size` square. */
 export function spriteStyle(key: string, size: number): CSSProperties {
   const { width, height } = pokemonSpriteSize(key);
-  const row = pokemonRow(key);
-  const [x0, y0, x1, y1] = row ? [row[3], row[4], row[5], row[6]] : [0, 0, width - 1, height - 1];
+  const [x0, y0, x1, y1] = pokemonSpriteBox(key) ?? [0, 0, width - 1, height - 1];
   const boxW = x1 - x0 + 1;
   const boxH = y1 - y0 + 1;
   const scale = size / Math.max(boxW, boxH);

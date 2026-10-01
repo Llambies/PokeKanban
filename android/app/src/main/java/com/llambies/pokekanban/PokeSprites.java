@@ -14,9 +14,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * Pokémon icons ("poke:25") from the PokeAPI sprites repository, same images as the web app (see
- * shared/pokemon.js). Downloaded once into the cache and cropped to the Pokémon so they read well
- * at widget and notification sizes.
+ * Pokémon icons ("poke:25", "poke:25:s" for shiny) from the PokeAPI sprites repository, same images as
+ * the web app (see shared/pokemon.js). Downloaded once into the cache and cropped to the Pokémon so
+ * they read well at widget and notification sizes.
  */
 final class PokeSprites {
 
@@ -25,23 +25,25 @@ final class PokeSprites {
 
     private PokeSprites() {}
 
-    /** Sprite key of an icon value ("poke:25", "poke:10091", "poke:201-b"), or null. */
+    /** Sprite key of an icon value ("poke:25", "poke:10091", "poke:201-b", "poke:25:s"), or null. */
     static String keyOf(String icon) {
         if (icon == null || !icon.startsWith("poke:")) return null;
         String key = icon.substring(5);
-        return key.matches("\\d+(-[a-z0-9-]+)?") ? key : null;
+        return key.matches("\\d+(-[a-z0-9-]+)?(:s)?") ? key : null;
     }
 
     private static File file(Context ctx, String key) {
         File dir = new File(ctx.getCacheDir(), "pokemon");
         if (!dir.exists()) dir.mkdirs();
-        return new File(dir, key + ".png");
+        return new File(dir, key.replace(":s", "-shiny") + ".png");
     }
 
     /** Makes sure the sprite is cached (network: call it off the main thread). */
     static boolean fetch(Context ctx, String key) {
         File target = file(ctx, key);
         if (target.exists() && target.length() > 0) return true;
+        // Menu icons have no shiny version: shiny Pokémon use the regular shiny sprite.
+        if (key.endsWith(":s")) return download(SPRITES + "/shiny/" + key.substring(0, key.length() - 2) + ".png", target);
         // The menu icon when there is one, otherwise the regular sprite (as the web app does).
         return download(SPRITES + "/versions/generation-viii/icons/" + key + ".png", target)
             || download(SPRITES + "/" + key + ".png", target);

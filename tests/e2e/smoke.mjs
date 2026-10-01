@@ -405,6 +405,14 @@ try {
   check((await page.locator('.icon-grid--poke .icon-cell[title="#25 Pikachu"]').count()) === 1, 'el selector de iconos busca Pokémon');
   await page.locator('.icon-grid--poke .icon-cell[title="#25 Pikachu"]').click();
   check((await page.locator('.ev-icon-btn .poke-glyph').count()) === 1, 'el evento muestra el icono del Pokémon');
+  await page.locator('.ev-icon-btn').click();
+  await page.locator('.popover .icon-picker__shiny').click();
+  await page.fill('.popover .icon-picker input', 'pikachu');
+  const shinyCell = page.locator('.icon-grid--poke .icon-cell[title="#25 Pikachu shiny"]');
+  check((await shinyCell.getAttribute('class')).includes('is-other'), 'con «Shiny» se ve Pikachu shiny, marcado como el actual');
+  await shinyCell.click();
+  const glyph = await page.locator('.ev-icon-btn .poke-glyph').getAttribute('style');
+  check(glyph.includes('/shiny/25.png'), 'el evento muestra Pikachu shiny');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(200);
 

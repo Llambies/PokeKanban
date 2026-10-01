@@ -21,7 +21,7 @@ Los datos son tuyos: se guardan en un archivo JSON en tu máquina, en tu cuenta 
 - Etiquetas ilimitadas con **30 colores** (claro / normal / oscuro) e **icono**: 130+ iconos, cualquier emoji o
   **cualquiera de los 1025 Pokémon y sus ~490 formas** (regionales de Alola, Galar, Hisui y Paldea, megaevoluciones,
   Gigamax, Unown, Vivillon, Alcremie…), con iconos de [PokeAPI](https://pokeapi.co), búsqueda por nombre o número,
-  atajos por región o tipo de forma y uno al azar.
+  atajos por región o tipo de forma, uno al azar y botón ✨ para elegir su **versión shiny**.
   Los mismos iconos sirven para los eventos del calendario, el widget de Android y sus notificaciones.
 - **Cabeceras de lista de color**, con opción de teñir toda la columna.
 - **Portadas** de tarjeta (franja o tarjeta completa, color o imagen por URL).

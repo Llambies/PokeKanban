@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Ban, Dices } from 'lucide-react';
+import { Ban, Dices, Sparkles } from 'lucide-react';
 import { EMOJIS, LUCIDE_PREFIX, lucideIconValue, searchIcons } from '../../lib/icons';
 import {
-  FORMS_COUNT, isForm, pokemonIconValue, pokemonKey, randomPokemon, searchPokemon, SPECIES_COUNT, spriteStyle,
+  baseKey, FORMS_COUNT, isForm, isShiny, pokemonIconValue, pokemonKey, randomPokemon, searchPokemon, SPECIES_COUNT,
+  spriteStyle, withShiny,
 } from '../../lib/pokemon';
 
 const POKEMON_PAGE = 96;
@@ -13,6 +14,8 @@ function PokemonTab({ value, onChange }: { value: string | null; onChange: (icon
   const [limit, setLimit] = useState(POKEMON_PAGE);
   const results = useMemo(() => searchPokemon(query), [query]);
   const selected = pokemonKey(value);
+  // Shiny mode shows (and picks) the shiny version of every Pokémon.
+  const [shiny, setShiny] = useState(() => !!selected && isShiny(selected));
   const search = (text: string) => {
     setQuery(text);
     setLimit(POKEMON_PAGE);
@@ -26,7 +29,17 @@ function PokemonTab({ value, onChange }: { value: string | null; onChange: (icon
           value={query}
           onChange={(e) => search(e.target.value)}
         />
-        <button type="button" className="btn btn--sm" title="Uno al azar" aria-label="Pokémon al azar" onClick={() => onChange(pokemonIconValue(randomPokemon()))}>
+        <button
+          type="button"
+          className="btn btn--sm icon-picker__shiny"
+          title={shiny ? 'Mostrando shiny: pulsa para ver los normales' : 'Ver los Pokémon shiny'}
+          aria-label="Shiny"
+          aria-pressed={shiny}
+          onClick={() => setShiny(!shiny)}
+        >
+          <Sparkles size={15} />
+        </button>
+        <button type="button" className="btn btn--sm" title="Uno al azar" aria-label="Pokémon al azar" onClick={() => onChange(pokemonIconValue(randomPokemon(), shiny))}>
           <Dices size={15} />
         </button>
       </div>
@@ -50,15 +63,19 @@ function PokemonTab({ value, onChange }: { value: string | null; onChange: (icon
         }}
       >
         {results.slice(0, limit).map((row) => {
-          const [key, species, name] = row;
+          const [base, species, name] = row;
+          const key = withShiny(base, shiny);
+          // The current icon in its other version (normal / shiny) is outlined: picking it switches it.
+          const state = selected === key ? 'is-selected' : selected && baseKey(selected) === base ? 'is-other' : '';
+          const label = shiny ? `${name} shiny` : name;
           return (
             <button
               type="button"
               key={key}
-              className={`icon-cell ${selected === key ? 'is-selected' : ''} ${isForm(row) ? 'is-form' : ''}`}
+              className={`icon-cell ${state} ${isForm(row) ? 'is-form' : ''}`}
               onClick={() => onChange(pokemonIconValue(key))}
-              title={`#${species} ${name}`}
-              aria-label={name}
+              title={`#${species} ${label}`}
+              aria-label={label}
             >
               <span className="poke-glyph" style={spriteStyle(key, 30)} />
             </button>
@@ -67,7 +84,8 @@ function PokemonTab({ value, onChange }: { value: string | null; onChange: (icon
         {results.length === 0 && <p className="muted small">Ningún Pokémon coincide</p>}
       </div>
       <p className="muted small icon-picker__credit">
-        {query ? `${results.length} resultados` : `${SPECIES_COUNT} Pokémon y ${FORMS_COUNT} formas`} · iconos de PokeAPI
+        {query ? `${results.length} resultados` : `${SPECIES_COUNT} Pokémon y ${FORMS_COUNT} formas`} ·{' '}
+        {shiny ? 'shiny' : 'iconos'} de PokeAPI
       </p>
     </>
   );

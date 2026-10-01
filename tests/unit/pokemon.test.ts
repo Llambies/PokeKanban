@@ -35,6 +35,23 @@ describe('Pokémon icons', () => {
     expect(style.backgroundPosition).toBe('-26px -31.5px');
   });
 
+  it('shows shiny Pokémon with the 96×96 shiny sprite', () => {
+    expect(pokemonIconValue('25', true)).toBe('poke:25:s');
+    expect(pokemonIconValue('25:s', false)).toBe('poke:25');
+    expect(pokemonIconValue('25:s')).toBe('poke:25:s');
+    expect(pokemonKey('poke:25:s')).toBe('25:s');
+    expect(pokemonKey('poke:201-b:s')).toBe('201-b:s');
+    expect(pokemonKey('poke:25:x')).toBeNull();
+    expect(pokemonName('25:s')).toBe('Pikachu shiny');
+    expect(pokemonSpriteUrl('25:s')).toMatch(/sprites\/pokemon\/shiny\/25\.png$/);
+    expect(pokemonSpriteUrl('10229:s')).toMatch(/sprites\/pokemon\/shiny\/10229\.png$/);
+    // Shiny Pikachu covers x 31–69, y 24–69 of its 96×96 sprite: 46 px tall fitted into 23 px.
+    const style = spriteStyle('25:s', 23);
+    expect(style.backgroundSize).toBe('48px 48px');
+    expect(style.backgroundPosition).toBe('-13.75px -12px');
+    expect(style.backgroundImage).toContain('/shiny/25.png');
+  });
+
   it('includes regional, Mega, Gigantamax and cosmetic forms with Spanish names', () => {
     expect(FORMS_COUNT).toBeGreaterThan(400);
     expect(pokemonName('10091')).toBe('Rattata de Alola');
