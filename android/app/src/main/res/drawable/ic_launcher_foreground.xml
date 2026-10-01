@@ -3,11 +3,17 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Pokéball inside the adaptive icon safe zone (radius 30 around the center). -->
-    <path android:fillColor="#FFFFFF" android:pathData="M24,54A30,30 0,1 1,84 54A30,30 0,1 1,24 54z" />
-    <path android:fillColor="#EF4444" android:pathData="M24,54A30,30 0,0 1,84 54z" />
-    <path android:fillColor="#1D2125" android:pathData="M24,50.8h60v6.4h-60z" />
-    <path android:fillColor="#1D2125" android:pathData="M40.1,54A13.9,13.9 0,1 1,67.9 54A13.9,13.9 0,1 1,40.1 54z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M46.5,54A7.5,7.5 0,1 1,61.5 54A7.5,7.5 0,1 1,46.5 54z" />
-    <path android:fillColor="#1D2125" android:pathData="M50.6,54A3.4,3.4 0,1 1,57.4 54A3.4,3.4 0,1 1,50.6 54z" />
+    <!-- Kanban (three lanes, first card red) inside the adaptive icon safe zone. -->
+    <path android:fillColor="#3B434C" android:pathData="M33.85,34.237h8.525a2.713,2.713 0,0 1,2.713,2.713v24.8a2.713,2.713 0,0 1,-2.713,2.713h-8.525a2.713,2.713 0,0 1,-2.713,-2.713v-24.8a2.713,2.713 0,0 1,2.713,-2.713z" />
+    <path android:fillColor="#EF4444" android:pathData="M35.012,36.563h6.2a1.55,1.55 0,0 1,1.55,1.55v3.875a1.55,1.55 0,0 1,-1.55,1.55h-6.2a1.55,1.55 0,0 1,-1.55,-1.55v-3.875a1.55,1.55 0,0 1,1.55,-1.55z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M35.012,45.862h6.2a1.55,1.55 0,0 1,1.55,1.55v3.875a1.55,1.55 0,0 1,-1.55,1.55h-6.2a1.55,1.55 0,0 1,-1.55,-1.55v-3.875a1.55,1.55 0,0 1,1.55,-1.55z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M35.012,55.163h6.2a1.55,1.55 0,0 1,1.55,1.55v3.875a1.55,1.55 0,0 1,-1.55,1.55h-6.2a1.55,1.55 0,0 1,-1.55,-1.55v-3.875a1.55,1.55 0,0 1,1.55,-1.55z" />
+    <path android:fillColor="#3B434C" android:pathData="M49.737,34.237h8.525a2.712,2.712 0,0 1,2.712,2.712v15.5a2.712,2.712 0,0 1,-2.712,2.712h-8.525a2.712,2.712 0,0 1,-2.712,-2.712v-15.5a2.712,2.712 0,0 1,2.712,-2.712z" />
+    <path android:fillColor="#EF4444" android:pathData="M50.9,36.563h6.2a1.55,1.55 0,0 1,1.55,1.55v3.875a1.55,1.55 0,0 1,-1.55,1.55h-6.2a1.55,1.55 0,0 1,-1.55,-1.55v-3.875a1.55,1.55 0,0 1,1.55,-1.55z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M50.9,45.862h6.2a1.55,1.55 0,0 1,1.55,1.55v3.875a1.55,1.55 0,0 1,-1.55,1.55h-6.2a1.55,1.55 0,0 1,-1.55,-1.55v-3.875a1.55,1.55 0,0 1,1.55,-1.55z" />
+    <path android:fillColor="#3B434C" android:pathData="M65.625,34.237h8.525a2.712,2.712 0,0 1,2.712,2.712v34.1a2.712,2.712 0,0 1,-2.712,2.712h-8.525a2.712,2.712 0,0 1,-2.712,-2.712v-34.1a2.712,2.712 0,0 1,2.712,-2.712z" />
+    <path android:fillColor="#EF4444" android:pathData="M66.788,36.563h6.2a1.55,1.55 0,0 1,1.55,1.55v3.875a1.55,1.55 0,0 1,-1.55,1.55h-6.2a1.55,1.55 0,0 1,-1.55,-1.55v-3.875a1.55,1.55 0,0 1,1.55,-1.55z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M66.788,45.862h6.2a1.55,1.55 0,0 1,1.55,1.55v3.875a1.55,1.55 0,0 1,-1.55,1.55h-6.2a1.55,1.55 0,0 1,-1.55,-1.55v-3.875a1.55,1.55 0,0 1,1.55,-1.55z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M66.788,55.163h6.2a1.55,1.55 0,0 1,1.55,1.55v3.875a1.55,1.55 0,0 1,-1.55,1.55h-6.2a1.55,1.55 0,0 1,-1.55,-1.55v-3.875a1.55,1.55 0,0 1,1.55,-1.55z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M66.788,64.463h6.2a1.55,1.55 0,0 1,1.55,1.55v3.875a1.55,1.55 0,0 1,-1.55,1.55h-6.2a1.55,1.55 0,0 1,-1.55,-1.55v-3.875a1.55,1.55 0,0 1,1.55,-1.55z" />
 </vector>

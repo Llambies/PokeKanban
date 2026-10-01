@@ -16,12 +16,23 @@ import { SearchBox } from './SearchBox';
 
 function Logo() {
   return (
-    <svg className="logo" viewBox="0 0 32 32" width="26" height="26" aria-hidden>
-      <circle cx="16" cy="16" r="14" fill="#fff" />
-      <path d="M2 16a14 14 0 0 1 28 0z" fill="#ef4444" />
-      <rect x="2" y="14.5" width="28" height="3" fill="#1d2125" />
-      <circle cx="16" cy="16" r="5" fill="#fff" stroke="#1d2125" strokeWidth="3" />
-      <circle cx="16" cy="16" r="1.6" fill="#1d2125" />
+    <svg className="logo" viewBox="0 0 100 100" width="26" height="26" aria-hidden>
+      <rect width="100" height="100" rx="22" fill="#1d2125" />
+      {/* Three lanes; the first card of each one is red, like the top of a pokéball. */}
+      <g transform="translate(50 50) scale(1.15) translate(-50 -50)">
+        <rect x="20.5" y="24.5" width="18" height="39" rx="3.5" fill="#3b434c" />
+        <rect x="23.5" y="27.5" width="12" height="9" rx="2" fill="#ef4444" />
+        <rect x="23.5" y="39.5" width="12" height="9" rx="2" fill="#fff" />
+        <rect x="23.5" y="51.5" width="12" height="9" rx="2" fill="#fff" />
+        <rect x="41" y="24.5" width="18" height="27" rx="3.5" fill="#3b434c" />
+        <rect x="44" y="27.5" width="12" height="9" rx="2" fill="#ef4444" />
+        <rect x="44" y="39.5" width="12" height="9" rx="2" fill="#fff" />
+        <rect x="61.5" y="24.5" width="18" height="51" rx="3.5" fill="#3b434c" />
+        <rect x="64.5" y="27.5" width="12" height="9" rx="2" fill="#ef4444" />
+        <rect x="64.5" y="39.5" width="12" height="9" rx="2" fill="#fff" />
+        <rect x="64.5" y="51.5" width="12" height="9" rx="2" fill="#fff" />
+        <rect x="64.5" y="63.5" width="12" height="9" rx="2" fill="#fff" />
+      </g>
     </svg>
   );
 }
