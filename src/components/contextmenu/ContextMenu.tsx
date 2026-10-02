@@ -34,6 +34,7 @@ interface PanelProps {
 
 function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter, title }: PanelProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef(new Map<number, HTMLButtonElement>());
   const sheet = isSheetMode();
   // opacity (not visibility) while measuring, so the menu can take keyboard focus immediately.
   const [style, setStyle] = useState<CSSProperties>({ opacity: 0, left: 0, top: 0 });
@@ -84,6 +85,12 @@ function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter, title }: 
 
   const focusable = items.map((item, i) => (isAction(item) && !item.disabled ? i : -1)).filter((i) => i >= 0);
 
+  /** Roving focus: moves real DOM focus to the item so screen readers announce it. */
+  function focusItem(index: number) {
+    const el = index >= 0 ? itemRefs.current.get(index) : null;
+    (el ?? ref.current)?.focus({ preventScroll: true });
+  }
+
   function openSubmenu(index: number, viaKeyboard: boolean) {
     const el = ref.current?.querySelector<HTMLElement>(`[data-index="${index}"]`);
     if (!el) return;
@@ -102,21 +109,27 @@ function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter, title }: 
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
-    if (openSub?.viaKeyboard && e.target !== ref.current) return;
+    if (openSub?.viaKeyboard && !ref.current?.contains(e.target as Node)) return;
     // Text fields inside custom items (icon search…) keep their keys.
     if ((e.target as HTMLElement).closest('input, textarea, select') && e.key !== 'Escape') return;
     const pos = focusable.indexOf(active);
     switch (e.key) {
-      case 'ArrowDown':
+      case 'ArrowDown': {
         e.preventDefault();
         e.stopPropagation();
-        setActive(focusable[(pos + 1) % focusable.length] ?? -1);
+        const next = focusable[(pos + 1) % focusable.length] ?? -1;
+        setActive(next);
+        focusItem(next);
         break;
-      case 'ArrowUp':
+      }
+      case 'ArrowUp': {
         e.preventDefault();
         e.stopPropagation();
-        setActive(focusable[pos < 0 ? focusable.length - 1 : (pos - 1 + focusable.length) % focusable.length] ?? -1);
+        const next = focusable[pos < 0 ? focusable.length - 1 : (pos - 1 + focusable.length) % focusable.length] ?? -1;
+        setActive(next);
+        focusItem(next);
         break;
+      }
       case 'ArrowRight': {
         e.preventDefault();
         e.stopPropagation();
@@ -191,11 +204,16 @@ function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter, title }: 
           return (
             <button
               key={`${item.label}-${i}`}
+              ref={(el) => {
+                if (el) itemRefs.current.set(i, el);
+                else itemRefs.current.delete(i);
+              }}
               type="button"
               role={item.checked !== undefined ? 'menuitemcheckbox' : 'menuitem'}
               aria-checked={item.checked}
               aria-haspopup={item.submenu ? 'menu' : undefined}
               aria-expanded={item.submenu ? openSub?.index === i : undefined}
+              tabIndex={-1}
               data-index={i}
               disabled={item.disabled}
               className={[
@@ -227,7 +245,7 @@ function MenuPanel({ items, anchor, depth, autoFocus, onBack, onEnter, title }: 
           autoFocus={openSub.viaKeyboard}
           onBack={() => {
             setOpenSub(null);
-            ref.current?.focus({ preventScroll: true });
+            focusItem(openSub.index);
           }}
           onEnter={() => {
             if (hoverTimer.current) clearTimeout(hoverTimer.current);

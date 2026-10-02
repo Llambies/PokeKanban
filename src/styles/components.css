@@ -503,13 +503,14 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.12);
+  /* Same scrim as the board header, so the white title stays readable on light backgrounds. */
+  background: var(--board-scrim, rgba(0, 0, 0, 0.24));
   pointer-events: none;
   transition: background 0.1s;
 }
 
 .board-tile:hover::after {
-  background: rgba(0, 0, 0, 0.25);
+  background: linear-gradient(rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.12)), var(--board-scrim, rgba(0, 0, 0, 0.24));
 }
 
 .board-tile__title {
@@ -567,6 +568,10 @@
 
 .board-tile:hover .board-tile__star,
 .board-tile:hover .board-tile__more,
+.board-tile:focus-within .board-tile__star,
+.board-tile:focus-within .board-tile__more,
+.board-tile__star:focus-visible,
+.board-tile__more:focus-visible,
 .board-tile__star.is-on {
   opacity: 1;
 }
@@ -620,6 +625,15 @@
   from {
     transform: translateX(24px);
     opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Side panel: fade in place instead of sliding in. */
+  @keyframes panel-in {
+    from {
+      opacity: 0;
+    }
   }
 }
 

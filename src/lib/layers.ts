@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, type RefObject } from 'react';
 
 /**
  * Stack of open overlays (modals, popovers, dialogs, menus). Escape and outside
@@ -8,18 +8,73 @@ import { useCallback, useEffect, useRef } from 'react';
 interface Layer {
   id: number;
   onEscape: () => void;
+  getContainer?: () => HTMLElement | null;
+  /** True for overlays with their own backdrop (modal, dialog, side panel). */
+  blocking?: boolean;
 }
 
 const stack: Layer[] = [];
 let nextId = 1;
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function focusableIn(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+    (el) => el.offsetParent !== null || el === document.activeElement,
+  );
+}
+
+/** Keeps Tab/Shift+Tab from leaving the top-most layer's container. */
+function trapTab(e: KeyboardEvent, container: HTMLElement): void {
+  const items = focusableIn(container);
+  if (items.length === 0) {
+    e.preventDefault();
+    return;
+  }
+  const first = items[0];
+  const last = items[items.length - 1];
+  const active = document.activeElement;
+  const outside = !active || !container.contains(active);
+  if (e.shiftKey) {
+    if (outside || active === first) {
+      e.preventDefault();
+      last.focus();
+    }
+  } else if (outside || active === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+/**
+ * Whether the app content outside all overlays (the #root tree) should be `inert`:
+ * excluded from Tab order, clicks and assistive tech while a blocking overlay — one
+ * with its own backdrop, like a modal, dialog or side panel — is open. Plain popovers
+ * and context menus don't set this: they have no backdrop and rely on a document click
+ * listener to detect "click outside to close", which `inert` would silently swallow.
+ */
+function updateInert(): void {
+  const root = document.getElementById('root');
+  if (!root) return;
+  if (stack.some((l) => l.blocking)) root.setAttribute('inert', '');
+  else root.removeAttribute('inert');
+}
+
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape' || e.defaultPrevented) return;
+  if (e.defaultPrevented) return;
   const top = stack[stack.length - 1];
   if (!top) return;
-  e.preventDefault();
-  e.stopPropagation();
-  top.onEscape();
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    top.onEscape();
+    return;
+  }
+  if (e.key === 'Tab') {
+    const container = top.getContainer?.();
+    if (container) trapTab(e, container);
+  }
 });
 
 /**
@@ -48,22 +103,38 @@ export function closeTopLayer(): boolean {
   return true;
 }
 
-export function useLayer(onEscape: () => void, active = true): () => boolean {
+export interface LayerOptions {
+  /** Container to keep Tab/Shift+Tab inside while this layer is top-most. */
+  container?: RefObject<HTMLElement | null>;
+  /** This overlay has its own backdrop, so the app behind it should become `inert`. */
+  blocking?: boolean;
+}
+
+export function useLayer(onEscape: () => void, active = true, options?: LayerOptions): () => boolean {
   const handler = useRef(onEscape);
   handler.current = onEscape;
   const idRef = useRef(0);
+  const { container, blocking } = options ?? {};
 
   useEffect(() => {
     if (!active) return;
-    const layer: Layer = { id: nextId++, onEscape: () => handler.current() };
+    const layer: Layer = {
+      id: nextId++,
+      onEscape: () => handler.current(),
+      getContainer: container ? () => container.current : undefined,
+      blocking,
+    };
     idRef.current = layer.id;
     stack.push(layer);
+    updateInert();
     return () => {
       const i = stack.findIndex((l) => l.id === layer.id);
       if (i >= 0) stack.splice(i, 1);
       idRef.current = 0;
+      updateInert();
     };
-  }, [active]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, container, blocking]);
 
   return useCallback(() => {
     const top = stack[stack.length - 1];

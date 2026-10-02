@@ -466,6 +466,7 @@ export function EventEditor({ event, occ, isNew, onClose }: { event: CalendarEve
             <button type="button" className="ev-icon-btn" onClick={openPop('icon')} title="Icono" aria-label="Cambiar icono" style={color ? { background: color.bg, color: color.fg } : undefined}>
               <IconGlyph icon={icon} size={20} />
             </button>
+            <label className="sr-only" htmlFor="event-title">Título del evento</label>
             <input
               id="event-title"
               className="input ev-title"

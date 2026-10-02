@@ -48,8 +48,10 @@ function BoardHeader({ boardId, view }: { boardId: string; view: BoardView }) {
           onCancel={() => setEditing(false)}
         />
       ) : (
-        <h1 className="board-header__title" onClick={() => setEditing(true)} title="Clic para renombrar">
-          {board.title}
+        <h1 className="board-header__title" title="Clic para renombrar">
+          <button type="button" className="heading-edit-btn" onClick={() => setEditing(true)}>
+            {board.title}
+          </button>
         </h1>
       )}
       <button
@@ -70,6 +72,7 @@ function BoardHeader({ boardId, view }: { boardId: string; view: BoardView }) {
             aria-selected={view === key}
             className={`board-header__btn ${view === key ? 'is-active' : ''}`}
             onClick={() => navigate({ boardId, view: key })}
+            aria-label={label}
           >
             <Icon size={16} /> <span className="hide-sm">{label}</span>
           </button>
@@ -82,6 +85,7 @@ function BoardHeader({ boardId, view }: { boardId: string; view: BoardView }) {
         className={`board-header__btn ${filterCount ? 'is-active' : ''}`}
         onClick={() => useUI.setState({ filterOpen: !filterOpen })}
         title="Filtrar (F)"
+        aria-label="Filtros"
       >
         <Filter size={16} /> <span className="hide-sm">Filtros</span>
         {filterCount > 0 && <span className="pill">{filterCount}</span>}

@@ -285,13 +285,13 @@ export function CalendarPage() {
         </div>
         <div className="segmented cal-toolbar__views" role="tablist" aria-label="Vista">
           {VIEWS.map((v) => (
-            <button key={v.key} type="button" role="tab" aria-selected={view === v.key} className={view === v.key ? 'is-active' : ''} onClick={() => setView(v.key)}>
+            <button key={v.key} type="button" role="tab" aria-selected={view === v.key} className={view === v.key ? 'is-active' : ''} onClick={() => setView(v.key)} aria-label={v.label}>
               {v.icon} <span className="cal-toolbar__view-label">{v.label}</span>
             </button>
           ))}
         </div>
         <div className="cal-toolbar__actions">
-          <button type="button" className={`btn btn--sm ${isCalFilterActive(filter) ? 'btn--active' : ''}`} onClick={openPop('filter')} aria-expanded={pop.key === 'filter'}>
+          <button type="button" className={`btn btn--sm ${isCalFilterActive(filter) ? 'btn--active' : ''}`} onClick={openPop('filter')} aria-expanded={pop.key === 'filter'} aria-label="Filtrar">
             <Filter size={15} /> <span className="cal-toolbar__label">Filtrar</span>
           </button>
           <button type="button" className="icon-btn" onClick={openPop('settings')} aria-label="Ajustes del calendario" title="Ajustes del calendario">

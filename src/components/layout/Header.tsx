@@ -58,10 +58,18 @@ function SaveStatus() {
     text = error ?? 'Conflicto';
   }
   const when = lastSavedAt && status === 'saved' ? ` · ${new Date(lastSavedAt).toLocaleTimeString('es-ES')}` : '';
+  // Announce only errors/conflicts: a live region that spoke up on every successful
+  // save would be noise, but a failure or conflict is worth interrupting for.
+  const announcement = status === 'error' || status === 'conflict' ? text : '';
   return (
-    <span className={`save-status save-status--${status}`} title={text + when} aria-label={text}>
-      {icon}
-    </span>
+    <>
+      <span className={`save-status save-status--${status}`} role="img" title={text + when} aria-label={text}>
+        {icon}
+      </span>
+      <span className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </span>
+    </>
   );
 }
 
@@ -78,7 +86,7 @@ function BoardsSwitcher() {
   const sorted = [...order].sort((a, b) => Number(boards[b].starred) - Number(boards[a].starred));
   return (
     <>
-      <button type="button" className="header-btn" onClick={(e) => setAnchor(anchor ? null : e.currentTarget)} aria-expanded={!!anchor}>
+      <button type="button" className="header-btn" onClick={(e) => setAnchor(anchor ? null : e.currentTarget)} aria-expanded={!!anchor} aria-label="Tableros">
         <LayoutDashboard size={16} className="show-sm" />
         <span className="header-btn__label">Tableros</span> <ChevronDown size={15} />
       </button>
@@ -132,6 +140,7 @@ function CalendarButton() {
       onClick={() => navigate({ page: 'calendar' })}
       aria-current={active ? 'page' : undefined}
       title="Calendario"
+      aria-label="Calendario"
     >
       <CalendarDays size={16} /> <span className="header-btn__label">Calendario</span>
     </button>

@@ -74,13 +74,38 @@ function matchesDue(card: Card, filters: DueFilter[], now: Date): boolean {
   });
 }
 
+/** Normalized search text and terms of a filter, computed once per filter object (not per card). */
+const queryCache = new WeakMap<CardFilter, { text: string; terms: string[] }>();
+
+function filterQuery(f: CardFilter): { text: string; terms: string[] } {
+  let cached = queryCache.get(f);
+  if (!cached) {
+    const text = normalize(f.text);
+    cached = { text, terms: text ? text.split(/\s+/) : [] };
+    queryCache.set(f, cached);
+  }
+  return cached;
+}
+
+/** Normalized searchable text of a card, cached per card (and per label-names map, so a label rename
+ * invalidates it) so filtering a list doesn't re-normalize the same card's title/description on every
+ * keystroke of the search box. */
+const haystackCache = new WeakMap<Card, { labelNames?: Map<string, string>; text: string }>();
+
+function cardHaystack(card: Card, labelNames?: Map<string, string>): string {
+  const cached = haystackCache.get(card);
+  if (cached && cached.labelNames === labelNames) return cached.text;
+  const labelText = labelNames ? card.labelIds.map((id) => labelNames.get(id) ?? '').join(' ') : '';
+  const text = normalize(`${card.title} ${card.description} ${labelText}`);
+  haystackCache.set(card, { labelNames, text });
+  return text;
+}
+
 export function cardMatches(card: Card, f: CardFilter, labelNames?: Map<string, string>, now = new Date()): boolean {
   if (card.kind === 'separator') return !isFilterActive(f);
-  const text = normalize(f.text);
+  const { text, terms } = filterQuery(f);
   if (text) {
-    const labelText = labelNames ? card.labelIds.map((id) => labelNames.get(id) ?? '').join(' ') : '';
-    const haystack = normalize(`${card.title} ${card.description} ${labelText}`);
-    const terms = text.split(/\s+/);
+    const haystack = cardHaystack(card, labelNames);
     if (!terms.every((t) => haystack.includes(t))) return false;
   }
   if (f.labelIds.length > 0 || f.noLabel) {

@@ -1,14 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
-import { DragDropContext, Droppable, type DropResult } from '@hello-pangea/dnd';
+import { DragDropContext, Droppable, type DragStart, type DragUpdate, type DropResult, type ResponderProvided } from '@hello-pangea/dnd';
 import { Plus, X } from 'lucide-react';
 import { createList, getData, moveCard, moveList } from '../../store/store';
 import { useBoard } from '../../store/hooks';
 import { useUI } from '../../store/ui';
 import { cardMatches, isFilterActive } from '../../lib/filter';
 import { visibleToFullIndex } from '../../lib/order';
+import { announceDragEnd, announceDragStart, announceDragUpdate, DRAG_HANDLE_INSTRUCTIONS, type DndAnnounceLabels } from '../../lib/dndA11y';
 import { openContextMenu } from '../contextmenu/menuStore';
 import { boardCanvasMenu } from '../contextmenu/menus';
 import { ListColumn } from './ListColumn';
+
+/** Card/list labels (Spanish) for drag-and-drop screen-reader announcements. */
+const kanbanDndLabels: DndAnnounceLabels = {
+  item: (id, type) => {
+    const data = getData();
+    return type === 'LIST' ? `la lista «${data.lists[id]?.title ?? ''}»` : `la tarjeta «${data.cards[id]?.title ?? ''}»`;
+  },
+  droppable: (id, type) => (type === 'LIST' ? 'el tablero' : `la lista «${getData().lists[id]?.title ?? ''}»`),
+};
 
 function visibleIdsOf(listId: string): string[] {
   const data = getData();
@@ -44,7 +54,12 @@ function AddListComposer({ boardId }: { boardId: string }) {
         createList(boardId, title);
         setTitle('');
         ref.current?.focus();
-        requestAnimationFrame(() => window.scrollTo({ left: document.documentElement.scrollWidth, behavior: 'smooth' }));
+        requestAnimationFrame(() =>
+          window.scrollTo({
+            left: document.documentElement.scrollWidth,
+            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+          })
+        );
       }}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node) && !title.trim()) setOpen(false);
@@ -54,6 +69,7 @@ function AddListComposer({ boardId }: { boardId: string }) {
         ref={ref}
         className="input"
         placeholder="Título de la lista…"
+        aria-label="Título de la lista"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => {
@@ -131,7 +147,16 @@ export function KanbanView({ boardId }: { boardId: string }) {
   useDragToScroll(canvas);
   if (!board) return null;
 
-  const onDragEnd = (result: DropResult) => {
+  const onDragStart = (start: DragStart, { announce }: ResponderProvided) => {
+    announceDragStart(start, kanbanDndLabels, announce);
+  };
+
+  const onDragUpdate = (update: DragUpdate, { announce }: ResponderProvided) => {
+    announceDragUpdate(update, kanbanDndLabels, announce);
+  };
+
+  const onDragEnd = (result: DropResult, { announce }: ResponderProvided) => {
+    announceDragEnd(result, kanbanDndLabels, announce);
     const { source, destination, draggableId, type } = result;
     if (!destination) return;
     if (type === 'LIST') {
@@ -156,7 +181,12 @@ export function KanbanView({ boardId }: { boardId: string }) {
         openContextMenu(e, () => boardCanvasMenu(boardId));
       }}
     >
-      <DragDropContext onDragEnd={onDragEnd}>
+      <DragDropContext
+        onDragStart={onDragStart}
+        onDragUpdate={onDragUpdate}
+        onDragEnd={onDragEnd}
+        dragHandleUsageInstructions={DRAG_HANDLE_INSTRUCTIONS}
+      >
         <Droppable droppableId={`board-${boardId}`} direction="horizontal" type="LIST">
           {(provided) => (
             <div ref={provided.innerRef} {...provided.droppableProps} className="board-lists">

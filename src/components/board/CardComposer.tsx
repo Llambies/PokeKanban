@@ -49,6 +49,7 @@ export function CardComposer({ listId, onAdded }: { listId: string; onAdded?: ()
         ref={ref}
         className="composer__input"
         placeholder="Título de la tarjeta… (Enter para añadir)"
+        aria-label="Título de la tarjeta"
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {

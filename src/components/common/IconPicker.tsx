@@ -26,6 +26,7 @@ function PokemonTab({ value, onChange }: { value: string | null; onChange: (icon
         <input
           className="input input--sm"
           placeholder="Buscar Pokémon o forma (nombre o número)"
+          aria-label="Buscar Pokémon o forma por nombre o número"
           value={query}
           onChange={(e) => search(e.target.value)}
         />
@@ -127,6 +128,7 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
           <input
             className="input input--sm"
             placeholder="Buscar icono (fuego, bug, casa…)"
+            aria-label="Buscar icono"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -155,6 +157,7 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
             <input
               className="input input--sm"
               placeholder="Pega o escribe cualquier emoji"
+              aria-label="Emoji personalizado"
               value={custom}
               maxLength={8}
               onChange={(e) => setCustom(e.target.value)}

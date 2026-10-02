@@ -139,14 +139,46 @@ export function openPanel(panel: BoardPanel): void {
 
 let toastId = 0;
 
+/** Auto-dismiss timers, so hovering/focusing a toast (see Dialogs.tsx) can pause them. */
+const toastTimers = new Map<number, { handle: ReturnType<typeof setTimeout>; remaining: number; startedAt: number }>();
+
+function scheduleToastDismiss(id: number, ms: number): void {
+  const handle = setTimeout(() => dismissToast(id), ms);
+  toastTimers.set(id, { handle, remaining: ms, startedAt: Date.now() });
+}
+
 export function toast(text: string, opts: { actionText?: string; action?: () => void; duration?: number } = {}): void {
   const id = ++toastId;
+  // Toasts with an action (e.g. "Deshacer") need longer: reading the text and deciding
+  // whether to act takes more than the usual dismiss timeout.
+  const duration = opts.duration ?? (opts.action ? 8000 : 4000);
   useUI.setState((s) => ({ toasts: [...s.toasts.slice(-3), { id, text, actionText: opts.actionText, action: opts.action }] }));
-  setTimeout(() => dismissToast(id), opts.duration ?? 4000);
+  scheduleToastDismiss(id, duration);
 }
 
 export function dismissToast(id: number): void {
+  const timer = toastTimers.get(id);
+  if (timer) {
+    clearTimeout(timer.handle);
+    toastTimers.delete(id);
+  }
   useUI.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
+}
+
+/** Pauses a toast's auto-dismiss (e.g. while hovered or focused). */
+export function pauseToast(id: number): void {
+  const timer = toastTimers.get(id);
+  if (!timer) return;
+  clearTimeout(timer.handle);
+  timer.remaining = Math.max(0, timer.remaining - (Date.now() - timer.startedAt));
+}
+
+/** Resumes a toast's auto-dismiss countdown from where `pauseToast` left it. */
+export function resumeToast(id: number): void {
+  const timer = toastTimers.get(id);
+  if (!timer) return;
+  timer.startedAt = Date.now();
+  timer.handle = setTimeout(() => dismissToast(id), timer.remaining);
 }
 
 export function confirmDialog(req: Omit<ConfirmRequest, 'resolve'>): Promise<boolean> {

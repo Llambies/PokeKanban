@@ -20,6 +20,7 @@ function BackgroundImage({ value, onChange }: { value: string; onChange: (key: s
           className="input input--sm"
           type="url"
           placeholder="https://…/foto.jpg"
+          aria-label="URL de la imagen de fondo"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => {

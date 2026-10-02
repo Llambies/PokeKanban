@@ -1,7 +1,7 @@
 import { memo, useState, type CSSProperties } from 'react';
 import { Draggable, Droppable } from '@hello-pangea/dnd';
 import { ChevronsLeftRight, ChevronsRightLeft, MoreHorizontal, Plus } from 'lucide-react';
-import { useList, useVisibleCardIds } from '../../store/hooks';
+import { useHasTemplates, useList, useVisibleCardIds } from '../../store/hooks';
 import { updateList, useStore } from '../../store/store';
 import { useUI } from '../../store/ui';
 import { getColor } from '../../lib/colors';
@@ -22,9 +22,7 @@ export const ListColumn = memo(function ListColumn({ listId, index }: ListColumn
   const visible = useVisibleCardIds(list);
   const composerOpen = useUI((s) => s.composerListId === listId);
   const filtering = useUI((s) => isFilterActive(s.filter));
-  const hasTemplates = useStore((s) =>
-    list ? Object.values(s.data.cards).some((c) => c.boardId === list.boardId && c.isTemplate && !c.archived) : false,
-  );
+  const hasTemplates = useHasTemplates(list?.boardId ?? '');
   const cardCount = useStore((s) =>
     list ? list.cardIds.reduce((n, id) => n + (s.data.cards[id]?.kind === 'separator' ? 0 : 1), 0) : 0,
   );
@@ -83,8 +81,10 @@ export const ListColumn = memo(function ListColumn({ listId, index }: ListColumn
                     onCancel={() => setEditingTitle(false)}
                   />
                 ) : (
-                  <h3 className="list__title" onClick={() => setEditingTitle(true)} title="Clic para renombrar">
-                    {list.title}
+                  <h3 className="list__title" title="Clic para renombrar">
+                    <button type="button" className="heading-edit-btn" onClick={() => setEditingTitle(true)}>
+                      {list.title}
+                    </button>
                   </h3>
                 )}
                 <span
@@ -107,7 +107,7 @@ export const ListColumn = memo(function ListColumn({ listId, index }: ListColumn
                   className="icon-btn icon-btn--sm list__header-btn"
                   onClick={(e) => openMenuAt(e.currentTarget, () => listMenu(listId))}
                   title="Acciones de la lista"
-                  aria-label="Acciones de la lista"
+                  aria-label={`Acciones de la lista «${list.title}»`}
                 >
                   <MoreHorizontal size={16} />
                 </button>

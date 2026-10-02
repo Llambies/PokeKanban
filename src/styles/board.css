@@ -15,7 +15,9 @@
   width: 100vw;
   min-height: var(--board-header-h);
   padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.24);
+  /* Darkens the raw board background enough for white text; tuned per preset
+     (see BOARD_BACKGROUNDS.scrim in src/lib/colors.ts) for the lighter presets. */
+  background: var(--board-scrim, rgba(0, 0, 0, 0.24));
   color: #fff;
   backdrop-filter: blur(4px);
 }
@@ -34,7 +36,9 @@
 }
 
 .board-header__title:hover {
-  background: rgba(255, 255, 255, 0.2);
+  /* Darkening (not lightening) keeps the white text legible on every board color:
+     it only ever adds contrast on top of --board-scrim. */
+  background: rgba(0, 0, 0, 0.12);
 }
 
 .board-header__title-input {
@@ -60,13 +64,15 @@
   padding: 0 10px;
   border: none;
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.16);
+  /* Darkening overlay (not lightening): guaranteed to keep >=4.5:1 white text
+     since it only adds on top of --board-scrim, never lightens it below threshold. */
+  background: rgba(0, 0, 0, 0.12);
   color: #fff;
   font-weight: 500;
 }
 
 .board-header__btn:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.26);
 }
 
 .board-header__btn.is-active {
@@ -210,7 +216,7 @@
 .list__count.is-over {
   opacity: 1;
   background: var(--danger);
-  color: #fff;
+  color: var(--danger-text);
 }
 
 .list__header-btn {
@@ -313,14 +319,16 @@
   padding: 0 12px;
   border: none;
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.24);
+  /* Same scrim as .board-header: darkening (not the old white tint) so the text
+     stays legible directly on the raw board background. */
+  background: var(--board-scrim, rgba(0, 0, 0, 0.24));
   color: #fff;
   font-weight: 500;
   text-align: left;
 }
 
 .add-list:hover {
-  background: rgba(255, 255, 255, 0.34);
+  background: rgba(0, 0, 0, 0.52);
 }
 
 .add-list--open {
@@ -516,7 +524,7 @@
 
 .badge.is-complete {
   background: var(--success);
-  color: #fff;
+  color: var(--success-text);
 }
 
 .badge--priority {
@@ -658,6 +666,20 @@
   font-weight: 500;
   color: var(--text-strong);
   min-width: 200px;
+}
+
+.data-table__title-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .data-table__labels {
@@ -811,7 +833,9 @@
   opacity: 0;
 }
 
-.calendar__day:hover .calendar__add {
+.calendar__day:hover .calendar__add,
+.calendar__day:focus-within .calendar__add,
+.calendar__add:focus-visible {
   opacity: 1;
 }
 

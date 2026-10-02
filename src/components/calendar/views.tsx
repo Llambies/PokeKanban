@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Plus, ZoomIn, ZoomOut } from 'lucide-react';
 import type { AppData } from '../../types';
 import { useStore } from '../../store/store';
@@ -34,6 +34,11 @@ export function useCalendarItems(fromKey: string, toKey: string, data?: AppData)
   const now = useNow();
   const source = data ?? storeData;
   return useMemo(() => calendarItems(source, fromKey, toKey, filter, now), [source, fromKey, toKey, filter, now]);
+}
+
+/** Full accessible date, e.g. "viernes, 2 de octubre" (for day-cell aria-labels). */
+export function fullDateLabel(key: string): string {
+  return `${WEEKDAY_NAMES[weekdayOf(keyToDay(key)) - 1]}, ${dayMonthText(key)}`;
 }
 
 export function dayTitle(key: string, today = todayKey()): string {
@@ -107,32 +112,38 @@ export function MonthView({ anchor, onSelect, onWeek }: { anchor: string; onSele
   return (
     <div className="cal-month">
       <div className="cal-month__grid" role="grid" aria-label="Mes">
-        {WEEKDAYS_SHORT.map((d) => (
-          <div key={d} className="cal-month__weekday" role="columnheader">
-            {d}
+        <div className="cal-month__row" role="row">
+          {WEEKDAYS_SHORT.map((d) => (
+            <div key={d} className="cal-month__weekday" role="columnheader">
+              {d}
+            </div>
+          ))}
+        </div>
+        {weeks.map((week, wi) => (
+          <div className="cal-month__row" role="row" key={wi}>
+            {week.map((date) => {
+              const key = toDateKey(date);
+              const list = items.get(key) ?? [];
+              const more = list.length - MONTH_CHIPS;
+              return (
+                <MonthDay
+                  key={key}
+                  day={key}
+                  num={date.getDate()}
+                  items={list.slice(0, more > 0 ? MONTH_CHIPS - 1 : MONTH_CHIPS)}
+                  more={more > 0 ? more + 1 : 0}
+                  outside={date.getMonth() !== m}
+                  today={key === today}
+                  selected={key === anchor}
+                  over={over === key}
+                  setOver={setOver}
+                  onSelect={onSelect}
+                  onWeek={onWeek}
+                />
+              );
+            })}
           </div>
         ))}
-        {weeks.flat().map((date) => {
-          const key = toDateKey(date);
-          const list = items.get(key) ?? [];
-          const more = list.length - MONTH_CHIPS;
-          return (
-            <MonthDay
-              key={key}
-              day={key}
-              num={date.getDate()}
-              items={list.slice(0, more > 0 ? MONTH_CHIPS - 1 : MONTH_CHIPS)}
-              more={more > 0 ? more + 1 : 0}
-              outside={date.getMonth() !== m}
-              today={key === today}
-              selected={key === anchor}
-              over={over === key}
-              setOver={setOver}
-              onSelect={onSelect}
-              onWeek={onWeek}
-            />
-          );
-        })}
       </div>
       <DayPanel day={anchor} items={items.get(anchor) ?? []} />
     </div>
@@ -161,7 +172,18 @@ function MonthDay(props: {
       {...drop}
     >
       <div className="cal-day__head">
-        <span className="cal-day__num">{num}</span>
+        <button
+          type="button"
+          className="cal-day__num"
+          aria-label={fullDateLabel(day)}
+          aria-current={today ? 'date' : undefined}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(day);
+          }}
+        >
+          {num}
+        </button>
         <button
           type="button"
           className="cal-day__add"
@@ -508,13 +530,30 @@ export function zoomWeek(dir: -1 | 1): void {
 function useWeekZoom(week: React.RefObject<HTMLDivElement | null>, scroller: React.RefObject<HTMLDivElement | null>) {
   const saved = usePrefs((s) => s.calHourPx);
   const [available, setAvailable] = useState(0);
-  const hourPx = clampHourPx(saved, available);
+  // Local to this mount, not the zustand store: during a zoom gesture this changes on every wheel or
+  // touchmove event (and every animation frame for the button zoom), so writing it straight to prefs
+  // would mean a JSON.stringify + localStorage.setItem that often, plus re-rendering anything else
+  // subscribed to the store. It's persisted debounced instead, see `schedulePersist` below.
+  const [live, setLive] = useState(saved);
+  const hourPx = clampHourPx(live, available);
   /** What the grid shows now: its hour height and scroll position (kept up to date on scroll). */
   const seen = useRef({ hourPx, top: 0 });
   const limits = useRef({ available, hourPx });
   limits.current = { available, hourPx };
   /** Time (minutes of the day) to keep `y` px below the top of the grid after the next zoom change. */
   const focus = useRef<{ minutes: number; y: number } | null>(null);
+  const persistTimer = useRef<number | undefined>(undefined);
+
+  // Flush a pending zoom change immediately if the view unmounts mid-gesture (switching calendar views).
+  useEffect(
+    () => () => {
+      if (persistTimer.current !== undefined) {
+        window.clearTimeout(persistTimer.current);
+        setPrefs({ calHourPx: limits.current.hourPx });
+      }
+    },
+    [],
+  );
 
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -556,7 +595,13 @@ function useWeekZoom(week: React.RefObject<HTMLDivElement | null>, scroller: Rea
       }
       // Several wheel or touch events can arrive before the next render: they build on each other.
       limits.current.hourPx = next;
-      setPrefs({ calHourPx: next });
+      setLive(next);
+      // Persist 300ms after the last change in the gesture, not on every single step.
+      if (persistTimer.current !== undefined) window.clearTimeout(persistTimer.current);
+      persistTimer.current = window.setTimeout(() => {
+        persistTimer.current = undefined;
+        setPrefs({ calHourPx: next });
+      }, 300);
     };
     const gridY = (clientY: number) => Math.max(0, Math.min(el.clientHeight, clientY - el.getBoundingClientRect().top));
 
@@ -637,10 +682,27 @@ function useWeekZoom(week: React.RefObject<HTMLDivElement | null>, scroller: Rea
   return { hourPx, atMin: hourPx <= fitHourPx(available), atMax: hourPx >= MAX_HOUR_PX, remember };
 }
 
+/** Empty, stable array reused so a day with nothing never forces its column to re-render. */
+const NO_ITEMS: CalItem[] = [];
+
 export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day: string) => void }) {
   const monday = keyToDay(anchor) - (weekdayOf(keyToDay(anchor)) - 1);
-  const days = Array.from({ length: 7 }, (_, i) => dayToKey(monday + i));
+  // Memoized so it's the same array reference across renders that don't change the week (`days[0]` is
+  // used as a dependency below, and `days` itself feeds the per-day split memo further down).
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => dayToKey(monday + i)), [monday]);
   const items = useCalendarItems(days[0], days[6]);
+  // All-day and timed items of each day, split once per `items`/`days` change instead of on every
+  // render (each WeekColumn used to get a freshly filtered array every render, which defeated memo).
+  const byDay = useMemo(() => {
+    const map = new Map<string, { allDay: CalItem[]; timed: CalItem[] }>();
+    for (const day of days) {
+      const allDay: CalItem[] = [];
+      const timed: CalItem[] = [];
+      for (const it of items.get(day) ?? []) (it.allDay ? allDay : timed).push(it);
+      map.set(day, { allDay, timed });
+    }
+    return map;
+  }, [items, days]);
   const { over, ghost, dragKey, actions: dnd } = useWeekDrag();
   const moving = dragKey ?? (ghost?.pending && ghost.item ? ghost.item.key : null);
   const drafting = useUI((s) => s.eventDraft !== null);
@@ -705,7 +767,7 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
       <div className="cal-week__allday">
         <div className="cal-week__gutter small muted">todo el día</div>
         {days.map((day) => (
-          <WeekAllDay key={day} day={day} items={(items.get(day) ?? []).filter((it) => it.allDay)} over={over === `all:${day}`} setOver={dnd.setOver} />
+          <WeekAllDay key={day} day={day} items={byDay.get(day)?.allDay ?? NO_ITEMS} over={over === `all:${day}`} setOver={dnd.setOver} />
         ))}
       </div>
       <div className="cal-week__scroll" ref={scroller} onScroll={remember}>
@@ -721,7 +783,7 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
             <WeekColumn
               key={day}
               day={day}
-              items={(items.get(day) ?? []).filter((it) => !it.allDay)}
+              items={byDay.get(day)?.timed ?? NO_ITEMS}
               hourPx={hourPx}
               nowMinutes={day === today ? nowMinutes : null}
               over={over === day}
@@ -795,7 +857,10 @@ function GhostBlock({ ghost: { item, day, top, bottom, start, end }, hourPx }: {
   );
 }
 
-function WeekColumn({ day, items, hourPx, nowMinutes, over, ghost, moving, dnd }: {
+// Memoized: `dnd` is stable (see useWeekDrag's useMemo) and `items` is now a stable per-day array
+// (see `byDay` in WeekView), so a day whose own props didn't change skips re-rendering when another
+// day's items, drag state or ghost changes.
+const WeekColumn = memo(function WeekColumn({ day, items, hourPx, nowMinutes, over, ghost, moving, dnd }: {
   day: string; items: CalItem[]; hourPx: number; nowMinutes: number | null; over: boolean; ghost: Ghost | null; moving: string | null; dnd: WeekDrag;
 }) {
   const placed = useMemo(() => layoutDay(items, hourPx), [items, hourPx]);
@@ -865,7 +930,12 @@ function WeekColumn({ day, items, hourPx, nowMinutes, over, ghost, moving, dnd }
             dnd.end();
           }}
           onClick={() => openItem(item)}
-          onKeyDown={(e) => e.key === 'Enter' && openItem(item)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              openItem(item);
+            }
+          }}
           onContextMenu={(e) => itemMenu(e, item)}
           title={`${item.time}${item.endTime ? `–${item.endTime}` : ''} ${itemTitle(item)}`}
         >
@@ -889,7 +959,7 @@ function WeekColumn({ day, items, hourPx, nowMinutes, over, ghost, moving, dnd }
       {nowMinutes !== null && <div className="cal-week__now" style={{ top: (nowMinutes / 60) * hourPx }} />}
     </div>
   );
-}
+});
 
 /* ----------------------------------------------------------------- agenda */
 

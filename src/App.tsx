@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useStore } from './store/store';
 import { usePersist } from './store/persistence';
 import { usePrefs, clearFilter, useUI } from './store/ui';
@@ -12,11 +12,14 @@ import { LoginScreen } from './components/layout/LoginScreen';
 import { useGlobalShortcuts } from './components/layout/useGlobalShortcuts';
 import { HomePage } from './components/home/HomePage';
 import { BoardPage } from './components/board/BoardPage';
-import { CardModal } from './components/card/CardModal';
-import { CalendarPage } from './components/calendar/CalendarPage';
-import { EventEditorHost } from './components/calendar/EventEditor';
 import { ContextMenuHost } from './components/contextmenu/ContextMenu';
 import { DialogHost } from './components/common/Dialogs';
+
+// Code-split: the calendar, the card modal and the event editor are only needed once the user
+// actually opens one of them, so they don't belong in the main chunk everyone downloads.
+const CalendarPage = lazy(() => import('./components/calendar/CalendarPage').then((m) => ({ default: m.CalendarPage })));
+const CardModal = lazy(() => import('./components/card/CardModal').then((m) => ({ default: m.CardModal })));
+const EventEditorHost = lazy(() => import('./components/calendar/EventEditor').then((m) => ({ default: m.EventEditorHost })));
 
 function useTheme() {
   const theme = usePrefs((s) => s.theme);
@@ -39,6 +42,8 @@ export function App() {
   const needsLogin = usePersist((s) => s.needsLogin);
   const route = useRoute();
   const board = useStore((s) => (route.page === 'board' && route.boardId ? s.data.boards[route.boardId] : undefined));
+  // Whether the (lazily loaded) event editor is needed, checked without importing its chunk.
+  const eventDraftOpen = useUI((s) => s.eventDraft !== null);
   useTheme();
   useGlobalShortcuts();
 
@@ -114,14 +119,20 @@ export function App() {
   return (
     <div
       className={`app ${board ? 'app--board' : route.page === 'calendar' ? 'app--calendar' : 'app--home'}`}
-      style={bg ? ({ '--board-base': bg.base } as React.CSSProperties) : undefined}
+      style={
+        bg
+          ? ({ '--board-base': bg.base, ...(bg.scrim ? { '--board-scrim': bg.scrim } : {}) } as React.CSSProperties)
+          : undefined
+      }
     >
       {bg && <div className="app__bg" style={{ background: bg.css }} />}
       <Header />
       <ConflictBanner />
       <main className="app__main">
         {route.page === 'calendar' ? (
-          <CalendarPage />
+          <Suspense fallback={null}>
+            <CalendarPage />
+          </Suspense>
         ) : route.page === 'board' ? (
           board ? (
             <BoardPage boardId={board.id} view={route.view} />
@@ -138,8 +149,16 @@ export function App() {
           <HomePage />
         )}
       </main>
-      {route.cardId && <CardModal key={route.cardId} cardId={route.cardId} />}
-      <EventEditorHost eventId={route.page === 'calendar' ? route.eventId : null} occ={route.occ} />
+      {route.cardId && (
+        <Suspense fallback={null}>
+          <CardModal key={route.cardId} cardId={route.cardId} />
+        </Suspense>
+      )}
+      {((route.page === 'calendar' && route.eventId) || eventDraftOpen) && (
+        <Suspense fallback={null}>
+          <EventEditorHost eventId={route.page === 'calendar' ? route.eventId : null} occ={route.occ} />
+        </Suspense>
+      )}
       <ContextMenuHost />
       <DialogHost />
       <ShortcutsHelp />

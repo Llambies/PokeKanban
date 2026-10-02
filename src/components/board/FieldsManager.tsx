@@ -8,6 +8,7 @@ import { confirmDialog } from '../../store/ui';
 import { FIELD_TYPES, fieldTypeName } from '../../lib/fields';
 import { PALETTE_ROWS, getColor } from '../../lib/colors';
 import { uid } from '../../lib/id';
+import { DRAG_HANDLE_INSTRUCTIONS } from '../../lib/dndA11y';
 
 export function FieldTypeIcon({ type, size = 15 }: { type: CustomFieldType; size?: number }) {
   switch (type) {
@@ -37,7 +38,7 @@ function OptionRow({ option, onChange, onDelete }: { option: CustomFieldOption; 
         aria-label="Color de la opción"
         title="Color"
       />
-      <input className="input input--sm" value={option.name} placeholder="Nombre de la opción" onChange={(e) => onChange({ ...option, name: e.target.value })} />
+      <input className="input input--sm" value={option.name} placeholder="Nombre de la opción" aria-label="Nombre de la opción" onChange={(e) => onChange({ ...option, name: e.target.value })} />
       <button type="button" className="icon-btn icon-btn--sm icon-btn--danger" onClick={onDelete} aria-label="Quitar opción">
         <X size={14} />
       </button>
@@ -127,6 +128,7 @@ function FieldEditor({ initial, onSave, onCancel, onDelete }: {
             <input
               className="input input--sm"
               placeholder="Nueva opción"
+              aria-label="Nueva opción"
               value={newOption}
               onChange={(e) => setNewOption(e.target.value)}
               onKeyDown={(e) => {
@@ -207,6 +209,7 @@ export function FieldsManager({ boardId }: { boardId: string }) {
         onDragEnd={(r) => {
           if (r.destination && r.destination.index !== r.source.index) S.moveField(boardId, r.source.index, r.destination.index);
         }}
+        dragHandleUsageInstructions={DRAG_HANDLE_INSTRUCTIONS}
       >
         <Droppable droppableId="fields">
           {(provided) => (

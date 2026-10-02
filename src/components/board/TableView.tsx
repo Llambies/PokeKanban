@@ -4,7 +4,7 @@ import type { Card, Priority } from '../../types';
 import { useBoard, useBoardCards } from '../../store/hooks';
 import { updateCard, useStore } from '../../store/store';
 import { openCard } from '../../lib/router';
-import { dueStatus, formatDate, formatTimestamp, parseLocal } from '../../lib/dates';
+import { DUE_STATUS_TEXT, dueStatus, formatDate, formatTimestamp, parseLocal } from '../../lib/dates';
 import { checklistsProgress } from '../../lib/checklist';
 import { getPriority } from '../../lib/priority';
 import { getColor } from '../../lib/colors';
@@ -101,8 +101,10 @@ export function TableView({ boardId }: { boardId: string }) {
                   }}
                 >
                   <td className="data-table__title">
-                    {card.cover?.color && <span className="cover-dot" style={{ background: getColor(card.cover.color)?.bg }} />}
-                    {card.title}
+                    <button type="button" className="data-table__title-btn" onClick={(e) => { e.stopPropagation(); openCard(card.id, boardId); }}>
+                      {card.cover?.color && <span className="cover-dot" style={{ background: getColor(card.cover.color)?.bg }} />}
+                      {card.title}
+                    </button>
                   </td>
                   <td>
                     <span className="list-pill" style={listColor ? { background: listColor.bg, color: listColor.fg } : undefined}>
@@ -134,7 +136,9 @@ export function TableView({ boardId }: { boardId: string }) {
                           updateCard(card.id, { dueDone: !card.dueDone });
                         }}
                         title="Marcar como completada / pendiente"
+                        aria-pressed={card.dueDone}
                       >
+                        {status && DUE_STATUS_TEXT[status] && <span className="sr-only">{DUE_STATUS_TEXT[status]}. </span>}
                         {formatDate(card.due)}
                       </button>
                     )}

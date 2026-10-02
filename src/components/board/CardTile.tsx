@@ -86,12 +86,14 @@ function CardBadges({ card }: { card: Card }) {
           type="button"
           className={`badge badge--due ${status ? `is-${status}` : ''}`}
           title={card.due ? `${DUE_STATUS_TEXT[status ?? 'normal'] || 'Vence'} · clic para marcar como ${card.dueDone ? 'pendiente' : 'completada'}` : 'Fecha de inicio'}
+          aria-pressed={card.due ? card.dueDone : undefined}
           onClick={(e) => {
             e.stopPropagation();
             if (card.due) updateCard(card.id, { dueDone: !card.dueDone });
           }}
         >
           <Clock size={13} />
+          {card.due && status && DUE_STATUS_TEXT[status] && <span className="sr-only">{DUE_STATUS_TEXT[status]}. </span>}
           {card.start && card.due ? `${formatDate(card.start)} – ${formatDate(card.due)}` : card.due ? formatDate(card.due) : `Empieza ${formatDate(card.start!)}`}
         </button>
       )}
@@ -146,7 +148,7 @@ export const CardTile = memo(function CardTile({ cardId, index }: CardTileProps)
       onCancel={() => useUI.setState({ editingCardId: null })}
     />
   ) : (
-    <span className="card-tile__title">{card.title}</span>
+    <span className="card-tile__title" id={`card-tile-title-${cardId}`}>{card.title}</span>
   );
 
   return (
@@ -184,7 +186,7 @@ export const CardTile = memo(function CardTile({ cardId, index }: CardTileProps)
           }}
           onMouseEnter={() => setHoveredCard(cardId)}
           onMouseLeave={() => clearHoveredCard(cardId)}
-          aria-label={card.title}
+          aria-labelledby={!editing ? `card-tile-title-${cardId}` : undefined}
         >
           {isSeparator ? (
             <div className="card-tile__separator">{title}</div>
@@ -210,7 +212,7 @@ export const CardTile = memo(function CardTile({ cardId, index }: CardTileProps)
             <button
               type="button"
               className="card-tile__menu"
-              aria-label="Acciones rápidas"
+              aria-label={card.title ? `Acciones rápidas de «${card.title}»` : 'Acciones rápidas'}
               title="Acciones rápidas"
               onClick={(e) => {
                 e.stopPropagation();

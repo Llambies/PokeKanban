@@ -73,7 +73,7 @@ export function LabelPicker({ card, onTitle }: { card: Card; onTitle: (title: st
 
   return (
     <div className="label-picker">
-      <input className="input" placeholder="Buscar etiquetas…" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <input className="input" placeholder="Buscar etiquetas…" aria-label="Buscar etiquetas" value={query} onChange={(e) => setQuery(e.target.value)} />
       <div className="label-picker__list">
         {labels.map((label) => {
           const checked = card.labelIds.includes(label.id);
@@ -138,12 +138,12 @@ export function DatesPicker({ card, onDone }: { card: Card; onDone: () => void }
       <label className="checkbox-row">
         <input type="checkbox" checked={useStart} onChange={(e) => setUseStart(e.target.checked)} /> Fecha de inicio
       </label>
-      <input type="date" className="input" disabled={!useStart} value={start} onChange={(e) => setStart(e.target.value)} />
+      <input type="date" className="input" disabled={!useStart} value={start} onChange={(e) => setStart(e.target.value)} aria-label="Fecha de inicio" />
       <label className="checkbox-row">
         <input type="checkbox" checked={useDue} onChange={(e) => setUseDue(e.target.checked)} /> Fecha de vencimiento
       </label>
       <div className="dates-picker__due">
-        <input type="date" className="input" disabled={!useDue} value={due} onChange={(e) => setDue(e.target.value)} />
+        <input type="date" className="input" disabled={!useDue} value={due} onChange={(e) => setDue(e.target.value)} aria-label="Fecha de vencimiento" />
         <input type="time" className="input" disabled={!useDue} value={time} onChange={(e) => setTime(e.target.value)} aria-label="Hora (opcional)" />
       </div>
       <p className="muted small">La hora es opcional: sin hora, vence al final del día.</p>
@@ -210,7 +210,7 @@ export function CoverPicker({ card }: { card: Card }) {
               S.setCover(card.id, url || cover?.color ? { color: cover?.color ?? null, image: url, size } : null);
             }}
           >
-            <input className="input" type="url" placeholder="https://…" value={image} onChange={(e) => setImage(e.target.value)} />
+            <input className="input" type="url" placeholder="https://…" aria-label="URL de la imagen de portada" value={image} onChange={(e) => setImage(e.target.value)} />
             <button type="submit" className="btn">Aplicar</button>
           </form>
         </>

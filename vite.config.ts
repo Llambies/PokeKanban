@@ -25,7 +25,4 @@ function storageApi(): Plugin {
 export default defineConfig({
   base: './',
   plugins: [react(), storageApi()],
-  build: {
-    chunkSizeWarningLimit: 1000,
-  },
 });

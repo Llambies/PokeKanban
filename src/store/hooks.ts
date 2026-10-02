@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Board, Card, List } from '../types';
+import type { AppData, Board, Card, List } from '../types';
 import { useStore } from './store';
 import { useUI } from './ui';
 import { cardMatches, isFilterActive } from '../lib/filter';
@@ -35,22 +35,42 @@ export function useVisibleCardIds(list: List | undefined): string[] {
 
 /** All non archived cards of a board (in board order), optionally filtered. */
 export function useBoardCards(boardId: string, applyFilter = true): Card[] {
-  const data = useStore((s) => s.data);
+  // Narrowed from the whole `s.data` so edits elsewhere (calendar events, other boards' own fields…)
+  // don't re-render every board's card list.
+  const board = useStore((s) => s.data.boards[boardId]);
+  const cards = useStore((s) => s.data.cards);
+  const lists = useStore((s) => s.data.lists);
   const filter = useUI((s) => s.filter);
   const labelNames = useLabelNames(boardId);
   return useMemo(() => {
-    const board = data.boards[boardId];
     if (!board) return [];
     const now = new Date();
     const result: Card[] = [];
     for (const listId of board.listIds) {
-      for (const cardId of data.lists[listId]?.cardIds ?? []) {
-        const card = data.cards[cardId];
+      for (const cardId of lists[listId]?.cardIds ?? []) {
+        const card = cards[cardId];
         if (!card) continue;
         if (applyFilter && isFilterActive(filter) && !cardMatches(card, filter, labelNames, now)) continue;
         result.push(card);
       }
     }
     return result;
-  }, [data, boardId, filter, applyFilter, labelNames]);
+  }, [board, cards, lists, boardId, filter, applyFilter, labelNames]);
+}
+
+/** Whether a board has any (non archived) template card, cached per board so several lists of the
+ * same board (each rendering its own "new from template" button) share one scan of all cards instead
+ * of each re-scanning on every store change. */
+let templatesCache: { cards: AppData['cards']; boardId: string; value: boolean } | null = null;
+
+export function useHasTemplates(boardId: string): boolean {
+  const cards = useStore((s) => s.data.cards);
+  return useMemo(() => {
+    if (templatesCache && templatesCache.cards === cards && templatesCache.boardId === boardId) {
+      return templatesCache.value;
+    }
+    const value = Object.values(cards).some((c) => c.boardId === boardId && c.isTemplate && !c.archived);
+    templatesCache = { cards, boardId, value };
+    return value;
+  }, [cards, boardId]);
 }

@@ -169,6 +169,10 @@
   background: var(--surface);
 }
 
+.cal-month__row {
+  display: contents;
+}
+
 .cal-month__weekday {
   padding: 6px;
   border-bottom: 1px solid var(--border);
@@ -228,9 +232,14 @@
   min-width: 24px;
   height: 24px;
   padding: 0 4px;
+  border: none;
   border-radius: 999px;
+  background: transparent;
+  font: inherit;
   font-size: 12px;
   font-weight: 600;
+  color: inherit;
+  cursor: pointer;
 }
 
 .cal-day.is-today .cal-day__num {
@@ -250,7 +259,9 @@
   opacity: 0;
 }
 
-.cal-day:hover .cal-day__add {
+.cal-day:hover .cal-day__add,
+.cal-day:focus-within .cal-day__add,
+.cal-day__add:focus-visible {
   opacity: 1;
 }
 
@@ -410,7 +421,7 @@
 .agenda-row__check.is-on {
   border-color: var(--success);
   background: var(--success);
-  color: #fff;
+  color: var(--success-text);
 }
 
 /* ----------------------------------------------------------------- agenda */
@@ -725,6 +736,12 @@
   box-shadow: var(--shadow-overlay), 0 0 0 1px var(--surface);
   pointer-events: none;
   transition: top 80ms ease-out, height 80ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cal-block--preview {
+    transition: none;
+  }
 }
 
 .cal-block--preview .cal-block__time {
@@ -1340,5 +1357,11 @@ html.is-cal-resizing * {
 @media (hover: none) {
   .cal-day__add {
     opacity: 1;
+  }
+
+  /* The zoom stepper shrinks to 22px tall on narrow screens (see the max-width:720px
+     rule above); on touch that falls under the 24px target minimum, so grow it back. */
+  .cal-week__zoom .icon-btn {
+    height: 28px;
   }
 }

@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { AlignLeft, Download, ExternalLink, FileText, Link2, MessageSquare, Paperclip, Pencil, Trash2, Upload } from 'lucide-react';
 import type { Card } from '../../types';
 import * as S from '../../store/store';
-import { renderMarkdown } from '../../lib/markdown';
+import { useMarkdown } from '../../lib/markdown';
 import { formatTimestamp } from '../../lib/dates';
 import { cssUrl } from '../../lib/colors';
 import { formatSize, isImageAttachment, MAX_UPLOAD_MB } from '../../lib/upload';
@@ -13,7 +13,7 @@ import { AutoTextarea } from '../common/AutoTextarea';
 export function Description({ card }: { card: Card }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(card.description);
-  const html = useMemo(() => (card.description.trim() ? renderMarkdown(card.description) : ''), [card.description]);
+  const html = useMarkdown(card.description.trim() ? card.description : '');
 
   const start = () => {
     setText(card.description);
@@ -44,6 +44,7 @@ export function Description({ card }: { card: Card }) {
             autoFocus
             value={text}
             placeholder="Añade una descripción más detallada… (admite Markdown)"
+            aria-label="Descripción"
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -281,7 +282,7 @@ export function Attachments({ card, onAdd }: { card: Card; onAdd: (anchor: HTMLE
 function CommentItem({ cardId, id, text, createdAt, editedAt }: { cardId: string; id: string; text: string; createdAt: number; editedAt?: number }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(text);
-  const html = useMemo(() => renderMarkdown(text), [text]);
+  const html = useMarkdown(text);
   return (
     <div className="comment">
       <div className="comment__meta">
@@ -368,6 +369,7 @@ export function Comments({ card }: { card: Card }) {
           ref={ref}
           className="input"
           placeholder="Escribe una nota…"
+          aria-label="Nota"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onFocus={() => setFocused(true)}

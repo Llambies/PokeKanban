@@ -91,10 +91,11 @@ function BoardTile({ boardId }: { boardId: string }) {
   });
   if (!board) return null;
   const [cards, overdue] = stats.split('|').map(Number);
+  const bg = getBoardBackground(board.background);
   return (
     <div
       className="board-tile"
-      style={{ background: getBoardBackground(board.background).css }}
+      style={{ background: bg.css, ...(bg.scrim ? { '--board-scrim': bg.scrim } : {}) } as React.CSSProperties}
       onClick={() => navigate({ boardId })}
       onContextMenu={(e) => openContextMenu(e, () => boardTileMenu(boardId))}
       role="link"
@@ -146,6 +147,7 @@ export function HomePage() {
 
   return (
     <div className="home">
+      <h1 className="sr-only">Tus tableros</h1>
       <Upcoming />
       {starred.length > 0 && (
         <section className="home__section">

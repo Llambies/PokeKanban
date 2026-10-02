@@ -1,8 +1,42 @@
 // Service worker: shows the reminders the server sends as push notifications and opens the
-// right event when one is tapped. It does not cache anything (the app always loads fresh).
+// right event when one is tapped. The app itself always loads fresh (no navigation caching);
+// the only thing cached here is Pokémon sprites, which never change once published.
+
+const SPRITE_CACHE = 'pokekanban-sprites-v1';
+const SPRITE_HOST = 'raw.githubusercontent.com';
 
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    (async () => {
+      // Drop sprite caches from older versions of the service worker.
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((k) => k.startsWith('pokekanban-sprites-') && k !== SPRITE_CACHE).map((k) => caches.delete(k)));
+      await self.clients.claim();
+    })(),
+  );
+});
+
+// Sprites come from raw.githubusercontent.com and are immutable (each URL is a specific sprite),
+// so a cache-first strategy avoids refetching the same ~30 KB of images on every visit.
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (url.hostname !== SPRITE_HOST) return;
+  event.respondWith(
+    (async () => {
+      const cache = await caches.open(SPRITE_CACHE);
+      const cached = await cache.match(request);
+      if (cached) return cached;
+      // mode: 'cors' with no-cors fallback isn't needed: the <img> request itself decides the
+      // mode, and an opaque response can still be cached and replayed for the same request.
+      const response = await fetch(request);
+      if (response && (response.ok || response.type === 'opaque')) cache.put(request, response.clone());
+      return response;
+    })(),
+  );
+});
 
 self.addEventListener('push', (event) => {
   let message = {};

@@ -36,7 +36,12 @@ function CalendarCard({ card, compact }: { card: Card; compact?: boolean }) {
         e.dataTransfer.effectAllowed = 'move';
       }}
       onClick={() => openCard(card.id, card.boardId)}
-      onKeyDown={(e) => e.key === 'Enter' && openCard(card.id, card.boardId)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openCard(card.id, card.boardId);
+        }
+      }}
       onContextMenu={(e) => {
         if (wantsNativeMenu(e)) return;
         openContextMenu(e, () => cardMenu(card.id));

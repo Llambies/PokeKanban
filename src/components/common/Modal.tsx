@@ -1,23 +1,28 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { isConsumed, useLayer } from '../../lib/layers';
+import { captureFocus } from '../../lib/focus';
 
 interface ModalProps {
   onClose: () => void;
   children: ReactNode;
   className?: string;
   labelledBy?: string;
+  /** Re-find an element to restore focus to if nothing had real focus when this opened
+   *  (e.g. it was opened by clicking a non-focusable tile). */
+  restoreFocusSelector?: string;
 }
 
-export function Modal({ onClose, children, className, labelledBy }: ModalProps) {
-  const isTop = useLayer(onClose);
-  const downOnBackdrop = useRef(false);
+export function Modal({ onClose, children, className, labelledBy, restoreFocusSelector }: ModalProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const isTop = useLayer(onClose, true, { container: ref, blocking: true });
+  const downOnBackdrop = useRef(false);
 
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
+    const restore = captureFocus(restoreFocusSelector);
     ref.current?.focus({ preventScroll: true });
-    return () => previous?.focus?.({ preventScroll: true });
+    return restore;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return createPortal(

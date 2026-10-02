@@ -226,7 +226,7 @@
 
 .side-btn--danger:hover {
   background: var(--danger);
-  color: #fff;
+  color: var(--danger-text);
 }
 
 /* sections */
@@ -412,6 +412,12 @@
   transition: width 0.2s;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar > span {
+    transition: none;
+  }
+}
+
 .progress-bar.is-complete > span {
   background: var(--success);
 }
@@ -482,7 +488,9 @@
   flex: none;
 }
 
-.cl-item:hover .cl-item__grip {
+.cl-item:hover .cl-item__grip,
+.cl-item:focus-within .cl-item__grip,
+.cl-item__grip:focus-visible {
   opacity: 1;
 }
 

@@ -58,8 +58,10 @@ function CardHeader({ card }: { card: Card }) {
             onCancel={() => setEditing(false)}
           />
         ) : (
-          <h2 id="card-title" className="card-modal__title" onClick={() => setEditing(true)}>
-            {card.title || <span className="muted">Sin título</span>}
+          <h2 id="card-title" className="card-modal__title">
+            <button type="button" className="heading-edit-btn" onClick={() => setEditing(true)}>
+              {card.title || <span className="muted">Sin título</span>}
+            </button>
           </h2>
         )}
         <p className="muted small">
@@ -83,7 +85,7 @@ export function CardModal({ cardId }: { cardId: string }) {
 
   if (!card) {
     return (
-      <Modal onClose={closeCard} className="modal--small">
+      <Modal onClose={closeCard} className="modal--small" restoreFocusSelector={`[data-card-id="${cardId}"]`}>
         <div className="modal__header">
           <h2>Tarjeta no encontrada</h2>
           <button type="button" className="icon-btn" onClick={closeCard} aria-label="Cerrar">
@@ -140,7 +142,7 @@ export function CardModal({ cardId }: { cardId: string }) {
   );
 
   return (
-    <Modal onClose={closeCard} className="card-modal" labelledBy="card-title">
+    <Modal onClose={closeCard} className="card-modal" labelledBy="card-title" restoreFocusSelector={`[data-card-id="${cardId}"]`}>
       <div
         className="card-modal__dropzone"
         onPaste={(e) => {

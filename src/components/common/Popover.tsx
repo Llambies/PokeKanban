@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { createPortal } from 'react-dom';
 import { ChevronLeft, X } from 'lucide-react';
 import { consumeEvent, useLayer } from '../../lib/layers';
+import { captureFocus } from '../../lib/focus';
 import { safeAreaInsets } from '../../lib/safeArea';
 
 interface PopoverProps {
@@ -20,7 +21,7 @@ export function Popover({ anchor, onClose, title, onBack, width = 304, className
   const ref = useRef<HTMLDivElement>(null);
   // opacity (not visibility) while measuring, so the popover can take focus right away.
   const [style, setStyle] = useState<CSSProperties>({ opacity: 0, top: 0, left: 0, width });
-  const isTop = useLayer(onClose);
+  const isTop = useLayer(onClose, true, { container: ref });
 
   useLayoutEffect(() => {
     const place = () => {
@@ -54,6 +55,8 @@ export function Popover({ anchor, onClose, title, onBack, width = 304, className
       window.removeEventListener('resize', place);
     };
   }, [anchor, width]);
+
+  useEffect(() => captureFocus(), []);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 import {
@@ -8,7 +8,9 @@ import * as S from '../../store/store';
 import { useBoard } from '../../store/hooks';
 import { confirmDialog, openPanel, useUI, type BoardPanel as PanelKind } from '../../store/ui';
 import { useLayer } from '../../lib/layers';
+import { captureFocus } from '../../lib/focus';
 import { getBoardBackground } from '../../lib/colors';
+import { DRAG_HANDLE_INSTRUCTIONS } from '../../lib/dndA11y';
 import { exportBoard } from '../../lib/backup';
 import { navigate } from '../../lib/router';
 import { normalize } from '../../lib/icons';
@@ -83,6 +85,7 @@ function LabelsManager({ boardId }: { boardId: string }) {
         onDragEnd={(r) => {
           if (r.destination && r.destination.index !== r.source.index) S.moveLabel(boardId, r.source.index, r.destination.index);
         }}
+        dragHandleUsageInstructions={DRAG_HANDLE_INSTRUCTIONS}
       >
         <Droppable droppableId="labels">
           {(provided) => (
@@ -147,7 +150,7 @@ function ArchivePanel({ boardId }: { boardId: string }) {
           Listas ({lists.length})
         </button>
       </div>
-      <input className="input" placeholder="Buscar en archivados" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <input className="input" placeholder="Buscar en archivados" aria-label="Buscar en archivados" value={query} onChange={(e) => setQuery(e.target.value)} />
       {tab === 'cards' ? (
         cards.length === 0 ? (
           <p className="muted small">No hay tarjetas archivadas.</p>
@@ -271,10 +274,19 @@ function MainMenu({ boardId }: { boardId: string }) {
 export function BoardPanel({ boardId }: { boardId: string }) {
   const panel = useUI((s) => s.panel);
   const board = useBoard(boardId);
-  useLayer(() => openPanel(null), !!panel);
+  const panelRef = useRef<HTMLElement>(null);
+  useLayer(() => openPanel(null), !!panel, { container: panelRef, blocking: true });
+
+  useEffect(() => {
+    if (!panel) return;
+    const restore = captureFocus();
+    panelRef.current?.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true });
+    return restore;
+  }, [panel]);
+
   if (!panel || !board) return null;
   return createPortal(
-    <aside className="side-panel" aria-label={TITLES[panel]}>
+    <aside ref={panelRef} className="side-panel" aria-label={TITLES[panel]}>
       <div className="side-panel__header">
         {panel !== 'menu' ? (
           <button type="button" className="icon-btn icon-btn--sm" onClick={() => openPanel('menu')} aria-label="Volver">
@@ -283,7 +295,7 @@ export function BoardPanel({ boardId }: { boardId: string }) {
         ) : (
           <span className="popover__spacer" />
         )}
-        <h2>{TITLES[panel]}</h2>
+        <h2 tabIndex={-1}>{TITLES[panel]}</h2>
         <button type="button" className="icon-btn icon-btn--sm" onClick={() => openPanel(null)} aria-label="Cerrar">
           <X size={18} />
         </button>

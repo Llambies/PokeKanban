@@ -68,7 +68,8 @@ export function ItemChip({ item, showTime = true }: { item: CalItem; showTime?: 
         openItem(item);
       }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
           e.stopPropagation();
           openItem(item);
         }
@@ -100,7 +101,12 @@ export function AgendaRow({ item, showDate }: { item: CalItem; showDate?: string
       style={itemStyle(item)}
       {...dragProps(item)}
       onClick={() => openItem(item)}
-      onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && openItem(item)}
+      onKeyDown={(e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+          e.preventDefault();
+          openItem(item);
+        }
+      }}
       onContextMenu={(e) => itemMenu(e, item)}
     >
       <span className="agenda-row__when">

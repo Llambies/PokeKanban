@@ -37,16 +37,45 @@ export function colorName(key: ColorKey | null | undefined): string {
   return getColor(key)?.name ?? 'Sin color';
 }
 
-/** Picks black or white text for a hex background. */
-export function contrastText(hex: string): string {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return DARK_TEXT;
-  const [r, g, b] = rgb.map((v) => {
+/** WCAG relative luminance (0–1) of an sRGB triple. */
+function relativeLuminance([r, g, b]: [number, number, number]): number {
+  const [R, G, B] = [r, g, b].map((v) => {
     const c = v / 255;
     return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   });
-  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return luminance > 0.36 ? DARK_TEXT : LIGHT_TEXT;
+  return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+}
+
+/** WCAG contrast ratio (1–21) between two relative luminances. */
+function contrastFromLuminance(l1: number, l2: number): number {
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/** WCAG contrast ratio (1–21) between two hex colors. */
+export function contrastRatio(hexA: string, hexB: string): number {
+  const a = hexToRgb(hexA);
+  const b = hexToRgb(hexB);
+  if (!a || !b) return 1;
+  return contrastFromLuminance(relativeLuminance(a), relativeLuminance(b));
+}
+
+const DARK_TEXT_LUMINANCE = relativeLuminance(hexToRgb(DARK_TEXT) ?? [0, 0, 0]);
+const LIGHT_TEXT_LUMINANCE = relativeLuminance(hexToRgb(LIGHT_TEXT) ?? [255, 255, 255]);
+
+/**
+ * Picks black or white text for a hex background: whichever gives the higher
+ * actual contrast ratio, rather than a fixed luminance cutoff (which used to pick
+ * white for plenty of mid-luminance colors that read better with dark text).
+ */
+export function contrastText(hex: string): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return DARK_TEXT;
+  const bgLuminance = relativeLuminance(rgb);
+  const darkContrast = contrastFromLuminance(bgLuminance, DARK_TEXT_LUMINANCE);
+  const lightContrast = contrastFromLuminance(bgLuminance, LIGHT_TEXT_LUMINANCE);
+  return darkContrast >= lightContrast ? DARK_TEXT : LIGHT_TEXT;
 }
 
 export function hexToRgb(hex: string): [number, number, number] | null {
@@ -70,25 +99,55 @@ export interface BoardBackground {
   css: string;
   /** Dominant color used for the translucent header. */
   base: string;
+  /**
+   * CSS color for the scrim behind the white text on the board (header, "Añadir otra lista",
+   * home tiles). Omitted presets fall back to the CSS default of rgba(0, 0, 0, 0.24); presets
+   * with a light top color need a stronger scrim to keep >=4.5:1 contrast.
+   */
+  scrim?: string;
 }
 
 export const BOARD_BACKGROUNDS: BoardBackground[] = [
   { key: 'ocean', name: 'Océano', css: 'linear-gradient(135deg, #0c66e4 0%, #09326c 100%)', base: '#0c4aa6' },
-  { key: 'sunset', name: 'Atardecer', css: 'linear-gradient(135deg, #f87168 0%, #e774bb 55%, #6e5dc6 100%)', base: '#b85494' },
+  {
+    key: 'sunset',
+    name: 'Atardecer',
+    css: 'linear-gradient(135deg, #f87168 0%, #e774bb 55%, #6e5dc6 100%)',
+    base: '#b85494',
+    scrim: 'rgba(0, 0, 0, 0.26)',
+  },
   { key: 'forest', name: 'Bosque', css: 'linear-gradient(135deg, #1f845a 0%, #0f4c35 100%)', base: '#17684a' },
-  { key: 'aurora', name: 'Aurora', css: 'linear-gradient(135deg, #227d9b 0%, #4bce97 50%, #94c748 100%)', base: '#2f9a86' },
+  {
+    key: 'aurora',
+    name: 'Aurora',
+    css: 'linear-gradient(135deg, #227d9b 0%, #4bce97 50%, #94c748 100%)',
+    base: '#2f9a86',
+    scrim: 'rgba(0, 0, 0, 0.38)',
+  },
   { key: 'dusk', name: 'Anochecer', css: 'linear-gradient(135deg, #6e5dc6 0%, #352c63 100%)', base: '#4f4396' },
-  { key: 'fire', name: 'Fuego', css: 'linear-gradient(135deg, #f5cd47 0%, #fea362 45%, #c9372c 100%)', base: '#e0703c' },
-  { key: 'candy', name: 'Caramelo', css: 'linear-gradient(135deg, #fdd0ec 0%, #cce0ff 100%)', base: '#b99fd0' },
+  {
+    key: 'fire',
+    name: 'Fuego',
+    css: 'linear-gradient(135deg, #f5cd47 0%, #fea362 45%, #c9372c 100%)',
+    base: '#e0703c',
+    scrim: 'rgba(0, 0, 0, 0.45)',
+  },
+  {
+    key: 'candy',
+    name: 'Caramelo',
+    css: 'linear-gradient(135deg, #fdd0ec 0%, #cce0ff 100%)',
+    base: '#b99fd0',
+    scrim: 'rgba(0, 0, 0, 0.5)',
+  },
   { key: 'night', name: 'Noche', css: 'linear-gradient(135deg, #1d2125 0%, #44546f 100%)', base: '#2c333a' },
   { key: 'blue', name: 'Azul', css: '#0079bf', base: '#0079bf' },
   { key: 'green', name: 'Verde', css: '#519839', base: '#519839' },
-  { key: 'orange', name: 'Naranja', css: '#d29034', base: '#d29034' },
+  { key: 'orange', name: 'Naranja', css: '#d29034', base: '#d29034', scrim: 'rgba(0, 0, 0, 0.28)' },
   { key: 'red', name: 'Rojo', css: '#b04632', base: '#b04632' },
   { key: 'purple', name: 'Morado', css: '#89609e', base: '#89609e' },
   { key: 'pink', name: 'Rosa', css: '#cd5a91', base: '#cd5a91' },
-  { key: 'lime', name: 'Lima', css: '#4bbf6b', base: '#4bbf6b' },
-  { key: 'sky', name: 'Celeste', css: '#00aecc', base: '#00aecc' },
+  { key: 'lime', name: 'Lima', css: '#4bbf6b', base: '#4bbf6b', scrim: 'rgba(0, 0, 0, 0.32)' },
+  { key: 'sky', name: 'Celeste', css: '#00aecc', base: '#00aecc', scrim: 'rgba(0, 0, 0, 0.28)' },
   { key: 'grey', name: 'Gris', css: '#838c91', base: '#838c91' },
 ];
 
@@ -99,13 +158,37 @@ export function cssUrl(url: string): string {
   return `url("${url.replace(/["\\\n\r]/g, (c) => encodeURIComponent(c))}")`;
 }
 
+/**
+ * Smallest black-scrim alpha (>= the default 0.24) that keeps white text at
+ * >=4.5:1 over `hex`. Used for custom/image backgrounds, whose brightness we
+ * can't pre-tune like the fixed presets above.
+ */
+function scrimAlphaFor(hex: string): number {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 0.24;
+  const bgLuminance = relativeLuminance(rgb);
+  for (let alpha = 0.24; alpha < 0.9; alpha += 0.02) {
+    // Alpha-composite black at `alpha` over the color: luminance scales linearly.
+    const effLuminance = bgLuminance * (1 - alpha);
+    if (contrastFromLuminance(effLuminance, LIGHT_TEXT_LUMINANCE) >= 4.6) return Math.round(alpha * 100) / 100;
+  }
+  return 0.9;
+}
+
 export function getBoardBackground(key: string): BoardBackground {
   if (key.startsWith('image:')) {
-    return { key, name: 'Imagen', css: `#2c333a ${cssUrl(key.slice(6))} center / cover no-repeat`, base: '#2c333a' };
+    // Unknown brightness: keep white text but use a strong, fixed scrim.
+    return {
+      key,
+      name: 'Imagen',
+      css: `#2c333a ${cssUrl(key.slice(6))} center / cover no-repeat`,
+      base: '#2c333a',
+      scrim: 'rgba(0, 0, 0, 0.55)',
+    };
   }
   if (key.startsWith('custom:')) {
     const hex = key.slice(7);
-    return { key, name: 'Personalizado', css: hex, base: hex };
+    return { key, name: 'Personalizado', css: hex, base: hex, scrim: `rgba(0, 0, 0, ${scrimAlphaFor(hex)})` };
   }
   return BG_BY_KEY.get(key) ?? BOARD_BACKGROUNDS[0];
 }

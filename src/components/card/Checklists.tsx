@@ -9,7 +9,8 @@ import * as S from '../../store/store';
 import { confirmDialog } from '../../store/ui';
 import * as tree from '../../lib/checklist';
 import { visibleToFullIndex } from '../../lib/order';
-import { combine, dateKeyOf, dueStatus, formatDate, timeOf } from '../../lib/dates';
+import { DRAG_HANDLE_INSTRUCTIONS } from '../../lib/dndA11y';
+import { combine, dateKeyOf, DUE_STATUS_TEXT, dueStatus, formatDate, timeOf } from '../../lib/dates';
 import { openContextMenu, openMenuAt, wantsNativeMenu } from '../contextmenu/menuStore';
 import { checklistItemMenu } from '../contextmenu/menus';
 import { AutoTextarea } from '../common/AutoTextarea';
@@ -108,6 +109,7 @@ function ItemComposer({ ctx, composer, depth, autoFocus = true }: { ctx: Ctx; co
         ref={ref}
         className="cl-composer__input"
         placeholder={composer.parentId ? 'Añadir subtarea… (Mayús+Tab para salir)' : 'Añadir un elemento… (Tab para subtarea)'}
+        aria-label={composer.parentId ? 'Añadir subtarea' : 'Añadir elemento de la checklist'}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
@@ -234,7 +236,7 @@ function ItemDate({ cardId, clId, item }: { cardId: string; clId: string; item: 
           open(e.currentTarget);
         }}
         title={item.due ? 'Cambiar fecha' : 'Añadir fecha'}
-        aria-label={item.due ? `Vence ${formatDate(item.due)}` : 'Añadir fecha'}
+        aria-label={item.due ? `Vence ${formatDate(item.due)}${status && DUE_STATUS_TEXT[status] ? ` (${DUE_STATUS_TEXT[status]})` : ''}` : 'Añadir fecha'}
       >
         <CalendarClock size={13} />
         {item.due && formatDate(item.due)}
@@ -343,7 +345,7 @@ function ItemRow({ ctx, cl, item, index, depth }: ItemRowProps) {
               aria-checked={item.done}
               className="cl-item__check"
               onClick={() => S.toggleChecklistItem(card.id, cl.id, item.id)}
-              aria-label={item.done ? 'Marcar como pendiente' : 'Marcar como hecha'}
+              aria-label={item.done ? `Marcar «${item.text}» como pendiente` : `Marcar «${item.text}» como hecha`}
             >
               {item.done ? <SquareCheckBig size={17} /> : <Square size={17} />}
             </button>
@@ -374,7 +376,7 @@ function ItemRow({ ctx, cl, item, index, depth }: ItemRowProps) {
                   className="icon-btn icon-btn--xs cl-item__action"
                   onClick={(e) => openMenuAt(e.currentTarget, menu)}
                   title="Más acciones"
-                  aria-label="Más acciones"
+                  aria-label={`Más acciones de «${item.text}»`}
                 >
                   <MoreHorizontal size={14} />
                 </button>
@@ -488,14 +490,17 @@ function ChecklistBlock({ ctx, cl, index, count }: { ctx: Ctx; cl: Checklist; in
             />
           </form>
         ) : (
-          <h3
-            className="card-section__title checklist__title"
-            onClick={() => {
-              setTitle(cl.title);
-              setEditingTitle(true);
-            }}
-          >
-            {cl.title}
+          <h3 className="card-section__title checklist__title">
+            <button
+              type="button"
+              className="heading-edit-btn"
+              onClick={() => {
+                setTitle(cl.title);
+                setEditingTitle(true);
+              }}
+            >
+              {cl.title}
+            </button>
           </h3>
         )}
         <div className="card-section__tools">
@@ -558,7 +563,7 @@ export function Checklists({ card, focusChecklistId }: { card: Card; focusCheckl
   };
 
   return (
-    <DragDropContext onDragEnd={onDragEnd}>
+    <DragDropContext onDragEnd={onDragEnd} dragHandleUsageInstructions={DRAG_HANDLE_INSTRUCTIONS}>
       <div className="checklists">
         {card.checklists.map((cl, i) => (
           <ChecklistBlock key={cl.id} ctx={ctx} cl={cl} index={i} count={card.checklists.length} />

@@ -20,6 +20,8 @@ interface Result {
 }
 
 export const SEARCH_INPUT_ID = 'global-search';
+const SEARCH_LISTBOX_ID = 'global-search-listbox';
+const resultOptionId = (i: number) => `global-search-option-${i}`;
 
 export function SearchBox() {
   const data = useStore((s) => s.data);
@@ -92,6 +94,13 @@ export function SearchBox() {
         placeholder="Buscar tarjetas, tableros y eventos"
         value={query}
         autoComplete="off"
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-autocomplete="list"
+        aria-controls={SEARCH_LISTBOX_ID}
+        aria-label="Buscar tarjetas, tableros y eventos"
+        aria-expanded={focused && results.length > 0}
+        aria-activedescendant={focused && results[active] ? resultOptionId(active) : undefined}
         onChange={(e) => {
           setQuery(e.target.value);
           setActive(0);
@@ -115,8 +124,6 @@ export function SearchBox() {
             inputRef.current?.blur();
           }
         }}
-        aria-label="Buscar"
-        aria-expanded={focused && results.length > 0}
       />
       {query && (
         <button type="button" className="search__clear" onMouseDown={(e) => e.preventDefault()} onClick={() => setQuery('')} aria-label="Limpiar búsqueda">
@@ -124,12 +131,13 @@ export function SearchBox() {
         </button>
       )}
       {focused && query.trim() && (
-        <div className="search__results" role="listbox">
+        <div className="search__results" role="listbox" id={SEARCH_LISTBOX_ID}>
           {results.length === 0 && <div className="search__empty">Sin resultados para "{query}"</div>}
           {results.map((r, i) => (
             <button
               type="button"
               key={`${r.kind}-${r.id}`}
+              id={resultOptionId(i)}
               role="option"
               aria-selected={i === active}
               className={`search__result ${i === active ? 'is-active' : ''}`}

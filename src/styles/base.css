@@ -29,11 +29,19 @@
   --danger: #c9372c;
   --danger-hover: #ae2e24;
   --danger-subtle: #ffeceb;
+  --danger-text: #ffffff;
   --success: #1f845a;
   --success-subtle: #dcfff1;
+  --success-text: #ffffff;
   --warning: #946f00;
   --warning-subtle: #fff7d6;
+  --warning-text: #ffffff;
   --focus: #388bff;
+  /* Priority text colors: darkened from the raw hue so they read >=4.5:1 on --card-bg. */
+  --prio-urgent: #c9372c;
+  --prio-high: #c25100;
+  --prio-medium: #946f00;
+  --prio-low: #0c66e4;
   --shadow-card: 0 1px 1px rgba(9, 30, 66, 0.25), 0 0 1px rgba(9, 30, 66, 0.31);
   --shadow-overlay: 0 8px 12px rgba(9, 30, 66, 0.15), 0 0 1px rgba(9, 30, 66, 0.31);
   --list-bg: #f1f2f4;
@@ -63,11 +71,19 @@
   --danger: #f87168;
   --danger-hover: #fd9891;
   --danger-subtle: #42221f;
+  --danger-text: #1d2125;
   --success: #4bce97;
   --success-subtle: #1c3329;
+  --success-text: #1d2125;
   --warning: #f5cd47;
   --warning-subtle: #332e1b;
+  --warning-text: #1d2125;
   --focus: #85b8ff;
+  /* Priority text colors: brightened from the light-theme hue so they read >=4.5:1 on --card-bg. */
+  --prio-urgent: #f87168;
+  --prio-high: #fea362;
+  --prio-medium: #f5cd47;
+  --prio-low: #579dff;
   --shadow-card: 0 1px 1px rgba(3, 4, 4, 0.5), 0 0 1px rgba(3, 4, 4, 0.5);
   --shadow-overlay: 0 8px 12px rgba(3, 4, 4, 0.36), 0 0 1px rgba(188, 214, 240, 0.12);
   --list-bg: #101204;
@@ -158,6 +174,34 @@ kbd {
   color: var(--text-muted);
 }
 
+/* Visually hidden but available to assistive tech (standard clip pattern). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* A click-to-rename heading (h1/h2/h3) wraps its text in this button so it's keyboard-activatable
+   while staying visually identical: fills the heading, no extra chrome of its own. */
+.heading-edit-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: text;
+}
+
 .small {
   font-size: 12px;
 }
@@ -208,7 +252,7 @@ kbd {
 
 .btn--danger {
   background: var(--danger);
-  color: #fff;
+  color: var(--danger-text);
 }
 
 .btn--danger:hover:not(:disabled) {
@@ -476,7 +520,7 @@ kbd {
   gap: 8px;
   padding: 80px 16px;
   text-align: center;
-  color: #fff;
+  color: var(--text-strong);
 }
 
 .empty-state h2 {
@@ -604,7 +648,14 @@ kbd {
 .save-status--error,
 .save-status--conflict {
   opacity: 1;
-  color: #f87168;
+  color: var(--danger-hover);
+}
+
+.app--board .topbar .save-status--error,
+.app--board .topbar .save-status--conflict {
+  /* The board topbar's background is a color-mix of the board color, so neither
+     theme's danger red is guaranteed to contrast: match the rest of the topbar text. */
+  color: #fff;
 }
 
 @keyframes pulse {
@@ -1172,6 +1223,7 @@ kbd {
   .board-tile__star,
   .board-tile__more,
   .calendar__add,
+  .cal-day__add,
   .cl-item__grip,
   .cl-item__action {
     opacity: 1 !important;
@@ -1192,6 +1244,19 @@ kbd {
 
   .card-tile__title {
     padding-right: 28px;
+  }
+
+  /* .calendar__add / .cal-day__add stay visually small but gain a larger invisible hit area. */
+  .calendar__add,
+  .cal-day__add {
+    position: relative;
+  }
+
+  .calendar__add::before,
+  .cal-day__add::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
   }
 }
 
@@ -1294,4 +1359,39 @@ kbd {
 .login__card .muted {
   margin: 0;
   text-align: center;
+}
+
+/* -------------------------------------------------- reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Infinite "saving" pulse: show a steady state instead of looping opacity. */
+  .save-status--pending,
+  .save-status--saving {
+    animation: none;
+    opacity: 1;
+  }
+
+  /* Splash spinner: keep it as a loading cue, just much calmer. */
+  .splash__logo {
+    animation-duration: 2.4s;
+  }
+
+  /* Entry animations: fade in place, no sliding or scaling. */
+  @keyframes menu-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes sheet-in {
+    from {
+      opacity: 0;
+    }
+  }
 }
