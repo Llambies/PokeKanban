@@ -14,13 +14,38 @@
   color: var(--danger);
 }
 
+.app--calendar {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+}
+
+.app--calendar > .topbar {
+  flex-shrink: 0;
+}
+
+.app--calendar > .app__main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .cal-page {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 16px;
+  padding: 16px env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
+.cal-page--week {
+  height: 100%;
+}
+
+.cal-page--week .cal-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
 .cal-toolbar {
@@ -28,6 +53,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
+  flex-shrink: 0;
+  padding-inline: 16px;
 }
 
 .cal-toolbar__nav {
@@ -482,6 +509,10 @@
   --gutter: 56px;
   /* Height of an hour, set by the zoom level. */
   --hour: 48px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -493,6 +524,11 @@
 .cal-week__grid {
   display: grid;
   grid-template-columns: var(--gutter) repeat(7, minmax(0, 1fr));
+}
+
+.cal-week__head,
+.cal-week__allday {
+  flex-shrink: 0;
 }
 
 .cal-week__head {
@@ -580,9 +616,9 @@
 }
 
 .cal-week__scroll {
-  /* A fixed height: zoomed all the way out, the 24 hours fill it. */
-  height: calc(100vh - var(--topbar-h) - 200px);
-  min-height: 320px;
+  /* Fill the space below the headers; zoomed out, all 24 hours fit here. */
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   /* Pinching zooms the grid (views.tsx), not the page. */
   touch-action: pan-y;
@@ -1223,7 +1259,16 @@ html.is-cal-resizing * {
   }
 
   .cal-page {
-    padding: 10px 8px calc(96px + env(safe-area-inset-bottom, 0px));
+    padding-top: 10px;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .cal-page--week {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .cal-toolbar {
+    padding-inline: 8px;
   }
 
   .cal-toolbar__title {
