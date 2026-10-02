@@ -369,3 +369,31 @@ export function timeRangeText(start: string, end: string | null): string {
   const weekday = (value: string) => WEEKDAYS_SHORT[weekdayOf(keyToDay(value)) - 1];
   return `${weekday(start)} ${from} – ${weekday(end)} ${end.slice(11, 16)}`;
 }
+
+/* -------------------------------------------------------- week view zoom */
+
+/** How tall the hours of the week view are: the whole day on screen, the usual height or taller. */
+export type WeekZoom = 'day' | 'normal' | 'large';
+
+export const WEEK_ZOOMS: WeekZoom[] = ['day', 'normal', 'large'];
+
+export const WEEK_ZOOM_LABELS: Record<WeekZoom, string> = { day: 'Día completo', normal: 'Normal', large: 'Amplio' };
+
+const HOUR_HEIGHTS = { normal: 48, large: 72 };
+/** "Whole day" never makes hours shorter than this: on very small screens the grid scrolls a little. */
+const MIN_DAY_HOUR = 16;
+
+/** Height in px of one hour of the week grid; "day" fits the 24 hours in `available` px (the visible height). */
+export function hourHeight(zoom: WeekZoom, available: number): number {
+  if (zoom === 'day') return available > 0 ? Math.max(MIN_DAY_HOUR, Math.floor((available / 24) * 100) / 100) : HOUR_HEIGHTS.normal;
+  return HOUR_HEIGHTS[zoom] ?? HOUR_HEIGHTS.normal;
+}
+
+/** The next zoom level towards more hours (`-1`) or bigger hours (`1`); stays at the ends. */
+export function stepZoom(zoom: WeekZoom, dir: -1 | 1): WeekZoom {
+  const i = Math.max(0, WEEK_ZOOMS.indexOf(zoom));
+  return WEEK_ZOOMS[clamp(i + dir, 0, WEEK_ZOOMS.length - 1)];
+}
+
+/** Every how many hours the grid gets a label, so they don't overlap when hours are short. */
+export const hourLabelStep = (hourPx: number) => (hourPx < 20 ? 2 : 1);

@@ -395,6 +395,26 @@ try {
   const coffee = page.locator('.cal-block', { hasText: 'Café con Marta' });
   check((await coffee.locator('.cal-block__time').textContent()) === '14:00–15:30', 'y el evento se crea con esa duración');
   check((await page.locator('.cal-block--preview').count()) === 0, 'sin bloque fantasma al cerrar el editor');
+  // Zoom: "whole day" fits 00–24 without scrolling, and dragging still gives the right times.
+  const scrollSize = () => page.locator('.cal-week__scroll').evaluate((el) => ({ client: el.clientHeight, scroll: el.scrollHeight, grid: el.firstElementChild.offsetHeight }));
+  await page.locator('.cal-week__zoom button[aria-label^="Alejar"]').click();
+  const fit = await scrollSize();
+  check(fit.scroll <= fit.client + 1, `«día completo» enseña las 24 horas sin scroll (${fit.grid}px en ${fit.client}px)`);
+  const dayCol = await coffee.locator('xpath=..').boundingBox();
+  const hour = dayCol.height / 24;
+  await page.mouse.move(dayCol.x + dayCol.width / 2, dayCol.y + 18 * hour + 2);
+  await page.mouse.down();
+  await page.mouse.move(dayCol.x + dayCol.width / 2, dayCol.y + 19 * hour + hour / 2, { steps: 6 });
+  const fitTime = await page.locator('.cal-block--preview .cal-block__time').textContent();
+  check(fitTime === '18:00 – 19:45', `con el zoom alejado, arrastrar sigue dando la hora correcta (${fitTime})`);
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  await page.keyboard.press('+');
+  await page.keyboard.press('+');
+  const large = await scrollSize();
+  check(large.grid === 24 * 72, `«amplio» hace las horas más altas (${large.grid}px)`);
+  await page.keyboard.press('-');
+  check((await scrollSize()).grid === 24 * 48, 'y − vuelve al tamaño normal');
   await page.locator('.cal-toolbar__views button', { hasText: 'Mes' }).click();
   // Pokémon icons in the icon picker.
   await page.locator('.cal-chip', { hasText: 'Gimnasio' }).first().click();

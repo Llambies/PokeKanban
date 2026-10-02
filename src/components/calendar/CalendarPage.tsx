@@ -18,7 +18,7 @@ import { IconGlyph, LabelChip } from '../common/LabelChip';
 import { LabelEditor } from '../common/LabelEditor';
 import { openMenuAt } from '../contextmenu/menuStore';
 import { newEvent, newEventMenu } from './actions';
-import { AgendaView, MonthView, WeekView } from './views';
+import { AgendaView, MonthView, WeekView, zoomWeek } from './views';
 import { NotificationSettings } from './NotificationSettings';
 
 const VIEWS: { key: CalendarView; label: string; icon: ReactNode }[] = [
@@ -255,6 +255,7 @@ export function CalendarPage() {
         a: () => setView('agenda'),
         ArrowLeft: () => setAnchor((a) => shiftAnchor(a, view, -1)),
         ArrowRight: () => setAnchor((a) => shiftAnchor(a, view, 1)),
+        ...(view === 'week' && { '-': () => zoomWeek(-1), '+': () => zoomWeek(1) }),
       };
       const action = actions[e.key.length === 1 ? e.key.toLowerCase() : e.key];
       if (!action) return;

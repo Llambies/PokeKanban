@@ -1,14 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, ZoomIn, ZoomOut } from 'lucide-react';
 import type { AppData } from '../../types';
 import { useStore } from '../../store/store';
-import { usePrefs, useUI } from '../../store/ui';
+import { setPrefs, usePrefs, useUI } from '../../store/ui';
 import { editOccurrence } from '../../store/calendar';
 import { getData, updateCard } from '../../store/store';
 import { monthMatrix, toDateKey, todayKey, WEEKDAYS_SHORT } from '../../lib/dates';
 import {
-  calendarItems, dayMonthText, droppedRange, fromTotal, itemTitle, KIND_INFO, KIND_ORDER, resizedRange, selectedRange, timeRangeText,
-  toTotal, type CalItem,
+  calendarItems, dayMonthText, droppedRange, fromTotal, hourHeight, hourLabelStep, itemTitle, KIND_INFO, KIND_ORDER, resizedRange,
+  selectedRange, stepZoom, timeRangeText, toTotal, WEEK_ZOOM_LABELS, type CalItem,
 } from '../../lib/calendar';
 import { dayToKey, keyToDay, weekdayOf, WEEKDAY_NAMES } from '../../../shared/calendar.js';
 import { IconGlyph } from '../common/LabelChip';
@@ -198,10 +198,10 @@ function MonthDay(props: {
 
 /* ------------------------------------------------------------------- week */
 
-const HOUR_PX = 48;
 const SNAP = 15;
-/** Shortest block (minutes), so short items can still be clicked. */
+/** Shortest block, in minutes and in px (zoomed out), so short items can still be clicked. */
 const MIN_BLOCK = 20;
+const MIN_BLOCK_PX = 14;
 /** Blocks shorter than this (45 min) only get the bottom resize edge. */
 const RESIZE_TOP_MIN_PX = 36;
 
@@ -222,18 +222,19 @@ const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.
 const defaultLength = (item: CalItem) => (item.type === 'event' && item.event?.kind === 'event' ? 60 : 30);
 
 /** Minutes of the day covered by an item's block: multi-day pieces run from or to midnight. */
-function blockRange(item: CalItem): { start: number; end: number } {
+function blockRange(item: CalItem, minBlock = MIN_BLOCK): { start: number; end: number } {
   const start = item.first ? toMinutes(item.time) : 0;
   let end: number;
   if (!item.last || (item.end && item.end.slice(0, 10) !== item.day)) end = 24 * 60;
   else if (item.endTime) end = toMinutes(item.endTime);
   else end = start + defaultLength(item);
-  return { start, end: Math.max(end, start + MIN_BLOCK) };
+  return { start, end: Math.max(end, start + minBlock) };
 }
 
-function layoutDay(items: CalItem[]): Placed[] {
+function layoutDay(items: CalItem[], hourPx: number): Placed[] {
+  const minBlock = Math.max(MIN_BLOCK, (MIN_BLOCK_PX / hourPx) * 60);
   const blocks = items
-    .map((item) => ({ item, ...blockRange(item) }))
+    .map((item) => ({ item, ...blockRange(item, minBlock) }))
     .sort((a, b) => a.start - b.start || b.end - a.end);
   const placed: Placed[] = [];
   let cluster: { block: (typeof blocks)[number]; col: number }[] = [];
@@ -242,7 +243,7 @@ function layoutDay(items: CalItem[]): Placed[] {
   const flush = () => {
     const cols = columnsEnd.length;
     for (const { block, col } of cluster) {
-      placed.push({ item: block.item, top: (block.start / 60) * HOUR_PX, height: ((block.end - block.start) / 60) * HOUR_PX, col, cols });
+      placed.push({ item: block.item, top: (block.start / 60) * hourPx, height: ((block.end - block.start) / 60) * hourPx, col, cols });
     }
     cluster = [];
     columnsEnd = [];
@@ -317,6 +318,12 @@ function rangeGhost(item: CalItem | null, day: string, { start, end }: { start: 
   return { item, day, start, end, top, bottom: Math.min(24 * 60, Math.max(toTotal(end) - dayStart, top + MIN_BLOCK)) };
 }
 
+/** Minutes of the day at `clientY` over a week column (the column is 24 hours tall, whatever the zoom). */
+function minutesAtY(column: HTMLElement, clientY: number): number {
+  const { top, height } = column.getBoundingClientRect();
+  return ((clientY - top) / height) * 1440;
+}
+
 /** A resize handle is being dragged: the block must not start a move. */
 let resizing = false;
 
@@ -341,7 +348,7 @@ function trackPointer(e: React.PointerEvent<HTMLElement>, column: HTMLElement, o
   let y = y0;
   let state: 'pressed' | 'dragging' | 'cancelled' = 'pressed';
   let frame = 0;
-  const report = () => on.move(((y - column.getBoundingClientRect().top) / HOUR_PX) * 60);
+  const report = () => on.move(minutesAtY(column, y));
   const move = (ev: PointerEvent) => {
     if (ev.pointerId !== pointerId || state === 'cancelled') return;
     y = ev.clientY;
@@ -455,7 +462,7 @@ function useWeekDrag() {
       /** Drags on an empty part of a column to choose when a new event starts and ends. */
       create(e: React.PointerEvent<HTMLElement>, day: string) {
         if (e.button !== 0 || e.pointerType === 'touch' || e.target !== e.currentTarget) return;
-        const from = ((e.clientY - e.currentTarget.getBoundingClientRect().top) / HOUR_PX) * 60;
+        const from = minutesAtY(e.currentTarget, e.clientY);
         let range: { start: string; end: string } | null = null;
         trackPointer(e, e.currentTarget, {
           move(minutes) {
@@ -481,6 +488,75 @@ function useWeekDrag() {
 
 type WeekDrag = ReturnType<typeof useWeekDrag>['actions'];
 
+/** Zooms the week view out (`-1`, more hours on screen) or in (`1`, taller hours). */
+export function zoomWeek(dir: -1 | 1): void {
+  const zoom = usePrefs.getState().calZoom;
+  const next = stepZoom(zoom, dir);
+  if (next !== zoom) setPrefs({ calZoom: next });
+}
+
+/**
+ * Height of an hour for the zoom level chosen, measured on the scrolling grid, and keeps the same time on
+ * screen when it changes: the one under the pointer (Ctrl + wheel) or the middle of the grid (buttons, keys).
+ */
+function useWeekZoom(scroller: React.RefObject<HTMLDivElement | null>) {
+  const zoom = usePrefs((s) => s.calZoom);
+  const [available, setAvailable] = useState(0);
+  const hourPx = hourHeight(zoom, available);
+  /** Hour height the last known scroll position was measured with, and that position. */
+  const seen = useRef({ hourPx, top: 0 });
+  /** Time (minutes of the day) to keep `y` px below the top of the grid after the next zoom change. */
+  const focus = useRef<{ minutes: number; y: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const measure = () => setAvailable(el.clientHeight);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [scroller]);
+
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    const prev = seen.current;
+    if (!el || prev.hourPx === hourPx) return;
+    const y = focus.current?.y ?? el.clientHeight / 2;
+    const minutes = focus.current?.minutes ?? ((prev.top + y) / prev.hourPx) * 60;
+    focus.current = null;
+    el.scrollTop = (minutes / 60) * hourPx - y;
+    seen.current = { hourPx, top: el.scrollTop };
+  }, [scroller, hourPx]);
+
+  // Ctrl + wheel (and pinching a touchpad) zooms the grid instead of the page.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    let delta = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      delta += e.deltaY;
+      if (Math.abs(delta) < 40) return;
+      const dir = delta > 0 ? -1 : 1;
+      delta = 0;
+      const y = e.clientY - el.getBoundingClientRect().top;
+      focus.current = { minutes: ((el.scrollTop + y) / seen.current.hourPx) * 60, y };
+      zoomWeek(dir);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [scroller]);
+
+  /** Call on scroll and after moving the grid, so a zoom change knows what was on screen. */
+  const remember = () => {
+    if (scroller.current) seen.current = { hourPx, top: scroller.current.scrollTop };
+  };
+  return { zoom, hourPx, remember };
+}
+
 export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day: string) => void }) {
   const monday = keyToDay(anchor) - (weekdayOf(keyToDay(anchor)) - 1);
   const days = Array.from({ length: 7 }, (_, i) => dayToKey(monday + i));
@@ -492,6 +568,8 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
     if (!drafting) dnd.closeNew();
   }, [drafting, dnd]);
   const scroller = useRef<HTMLDivElement>(null);
+  const { zoom, hourPx, remember } = useWeekZoom(scroller);
+  const labelStep = hourLabelStep(hourPx);
   const now = useNow();
   const today = todayKey();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -500,15 +578,37 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
     const el = scroller.current;
     if (!el) return;
     const hour = days.includes(today) ? Math.max(0, now.getHours() - 1) : 7;
-    el.scrollTop = hour * HOUR_PX;
+    el.scrollTop = hour * hourPx;
+    remember();
     // Only when the week changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [days[0]]);
 
   return (
-    <div className="cal-week">
+    <div className={`cal-week cal-week--${zoom}`} style={{ '--hour': `${hourPx}px` } as React.CSSProperties}>
       <div className="cal-week__head">
-        <div className="cal-week__gutter" />
+        <div className="cal-week__gutter cal-week__zoom">
+          <button
+            type="button"
+            className="icon-btn icon-btn--xs"
+            onClick={() => zoomWeek(-1)}
+            disabled={zoom === 'day'}
+            aria-label="Alejar: ver más horas"
+            title={`Alejar (−) · ahora: ${WEEK_ZOOM_LABELS[zoom]}`}
+          >
+            <ZoomOut size={15} />
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn--xs"
+            onClick={() => zoomWeek(1)}
+            disabled={zoom === 'large'}
+            aria-label="Acercar: horas más altas"
+            title={`Acercar (+) · ahora: ${WEEK_ZOOM_LABELS[zoom]}`}
+          >
+            <ZoomIn size={15} />
+          </button>
+        </div>
         {days.map((day, i) => (
           <button
             key={day}
@@ -527,12 +627,12 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
           <WeekAllDay key={day} day={day} items={(items.get(day) ?? []).filter((it) => it.allDay)} over={over === `all:${day}`} setOver={dnd.setOver} />
         ))}
       </div>
-      <div className="cal-week__scroll" ref={scroller}>
-        <div className="cal-week__grid" style={{ height: 24 * HOUR_PX }}>
+      <div className={`cal-week__scroll ${zoom === 'day' ? 'is-fit' : ''}`} ref={scroller} onScroll={remember}>
+        <div className="cal-week__grid" style={{ height: 24 * hourPx }}>
           <div className="cal-week__gutter cal-week__hours">
             {Array.from({ length: 24 }, (_, h) => (
-              <span key={h} style={{ top: h * HOUR_PX }}>
-                {h === 0 ? '' : `${pad(h)}:00`}
+              <span key={h} style={{ top: h * hourPx }}>
+                {h === 0 || h % labelStep ? '' : `${pad(h)}:00`}
               </span>
             ))}
           </div>
@@ -541,6 +641,7 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
               key={day}
               day={day}
               items={(items.get(day) ?? []).filter((it) => !it.allDay)}
+              hourPx={hourPx}
               nowMinutes={day === today ? nowMinutes : null}
               over={over === day}
               ghost={ghost?.day === day ? ghost : null}
@@ -572,8 +673,7 @@ function WeekAllDay({ day, items, over, setOver }: { day: string; items: CalItem
 
 /** Minutes of the day at the pointer (minus `offset`), snapped to the grid. */
 function minutesAt(e: React.MouseEvent | React.DragEvent, el: HTMLElement, offset = 0): number {
-  const y = e.clientY - el.getBoundingClientRect().top;
-  const minutes = Math.round(((y / HOUR_PX) * 60 - offset) / SNAP) * SNAP;
+  const minutes = Math.round((minutesAtY(el, e.clientY) - offset) / SNAP) * SNAP;
   return Math.max(0, Math.min(24 * 60 - SNAP, minutes));
 }
 
@@ -591,7 +691,7 @@ function ResizeHandle({ edge, onPointerDown }: { edge: 'start' | 'end'; onPointe
 }
 
 /** Ghost of the item being moved, resized or created, with its new time. */
-function GhostBlock({ ghost: { item, day, top, bottom, start, end } }: { ghost: Ghost }) {
+function GhostBlock({ ghost: { item, day, top, bottom, start, end }, hourPx }: { ghost: Ghost; hourPx: number }) {
   const dayStart = keyToDay(day) * 1440;
   const className = [
     'cal-block cal-block--preview',
@@ -603,7 +703,7 @@ function GhostBlock({ ghost: { item, day, top, bottom, start, end } }: { ghost: 
     <div
       className={className}
       // A new event gets the default color of events.
-      style={{ ...itemStyle(item ?? { colorKey: KIND_INFO.event.color }), top: (top / 60) * HOUR_PX, height: ((bottom - top) / 60) * HOUR_PX }}
+      style={{ ...itemStyle(item ?? { colorKey: KIND_INFO.event.color }), top: (top / 60) * hourPx, height: ((bottom - top) / 60) * hourPx }}
       aria-hidden="true"
     >
       <span className="cal-block__time">{timeRangeText(start, end)}</span>
@@ -614,10 +714,10 @@ function GhostBlock({ ghost: { item, day, top, bottom, start, end } }: { ghost: 
   );
 }
 
-function WeekColumn({ day, items, nowMinutes, over, ghost, moving, dnd }: {
-  day: string; items: CalItem[]; nowMinutes: number | null; over: boolean; ghost: Ghost | null; moving: string | null; dnd: WeekDrag;
+function WeekColumn({ day, items, hourPx, nowMinutes, over, ghost, moving, dnd }: {
+  day: string; items: CalItem[]; hourPx: number; nowMinutes: number | null; over: boolean; ghost: Ghost | null; moving: string | null; dnd: WeekDrag;
 }) {
-  const placed = useMemo(() => layoutDay(items), [items]);
+  const placed = useMemo(() => layoutDay(items, hourPx), [items, hourPx]);
   const timeAt = (e: React.MouseEvent) => {
     const minutes = Math.floor(minutesAt(e, e.currentTarget as HTMLElement) / 30) * 30;
     return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
@@ -664,7 +764,7 @@ function WeekColumn({ day, items, nowMinutes, over, ghost, moving, dnd }: {
           role="button"
           tabIndex={0}
           draggable
-          className={`cal-block ${item.type === 'card' ? 'cal-block--card' : ''} ${item.done ? 'is-done' : ''} ${item.overdue ? 'is-overdue' : ''} ${item.first ? '' : 'is-cont-start'} ${item.last ? '' : 'is-cont-end'} ${moving === item.key ? 'is-dragging' : ''}`}
+          className={`cal-block ${height < 24 ? 'is-short' : ''} ${item.type === 'card' ? 'cal-block--card' : ''} ${item.done ? 'is-done' : ''} ${item.overdue ? 'is-overdue' : ''} ${item.first ? '' : 'is-cont-start'} ${item.last ? '' : 'is-cont-end'} ${moving === item.key ? 'is-dragging' : ''}`}
           style={{ ...itemStyle(item), top, height, left: `calc(${(col / cols) * 100}% + 1px)`, width: `calc(${100 / cols}% - 3px)` }}
           onDragStart={(e) => {
             if (resizing) {
@@ -672,7 +772,8 @@ function WeekColumn({ day, items, nowMinutes, over, ghost, moving, dnd }: {
               return;
             }
             drag.item = item;
-            drag.offset = ((e.clientY - e.currentTarget.getBoundingClientRect().top) / HOUR_PX) * 60;
+            const column = e.currentTarget.parentElement!;
+            drag.offset = minutesAtY(column, e.clientY) - minutesAtY(column, e.currentTarget.getBoundingClientRect().top);
             e.dataTransfer.setData(DRAG_TYPE, item.key);
             e.dataTransfer.effectAllowed = 'move';
             if (EMPTY_DRAG_IMAGE) e.dataTransfer.setDragImage(EMPTY_DRAG_IMAGE, 0, 0);
@@ -703,8 +804,8 @@ function WeekColumn({ day, items, nowMinutes, over, ghost, moving, dnd }: {
           )}
         </div>
       ))}
-      {ghost && <GhostBlock ghost={ghost} />}
-      {nowMinutes !== null && <div className="cal-week__now" style={{ top: (nowMinutes / 60) * HOUR_PX }} />}
+      {ghost && <GhostBlock ghost={ghost} hourPx={hourPx} />}
+      {nowMinutes !== null && <div className="cal-week__now" style={{ top: (nowMinutes / 60) * hourPx }} />}
     </div>
   );
 }

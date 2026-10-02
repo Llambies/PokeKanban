@@ -3,7 +3,9 @@ import {
   agenda, collectReminders, dayKeyAt, occurrenceIndex, occurrenceRange, occurrences, wallToUtc, whenText, yearsAt,
 } from '../../shared/calendar.js';
 import type { AppData, CalendarEvent, Recurrence } from '../../src/types';
-import { calendarItems, droppedRange, EMPTY_CAL_FILTER, resizedRange, selectedRange, timeRangeText } from '../../src/lib/calendar';
+import {
+  calendarItems, droppedRange, EMPTY_CAL_FILTER, hourHeight, hourLabelStep, resizedRange, selectedRange, stepZoom, timeRangeText,
+} from '../../src/lib/calendar';
 import * as S from '../../src/store/store';
 import * as C from '../../src/store/calendar';
 import { emptyData, makeCard, makeEvent, sampleData } from '../../src/store/factories';
@@ -283,5 +285,34 @@ describe('normalize (calendar)', () => {
     data.lists[listId].archived = true;
     data.settings = { ...data.settings, timeZone: 'UTC', cardReminders: [0] };
     expect(collectReminders(data, Date.UTC(2026, 8, 28), Date.UTC(2026, 8, 29)).some((r) => r.id.includes(card.id))).toBe(false);
+  });
+});
+
+describe('week view zoom', () => {
+  it('fits the 24 hours in the visible height when showing the whole day', () => {
+    expect(hourHeight('day', 720)).toBe(30);
+    expect(24 * hourHeight('day', 700)).toBeLessThanOrEqual(700);
+    // Too small: hours keep a minimum height and the grid scrolls.
+    expect(hourHeight('day', 240)).toBe(16);
+    // Not measured yet.
+    expect(hourHeight('day', 0)).toBe(48);
+  });
+
+  it('uses fixed heights for the other levels', () => {
+    expect(hourHeight('normal', 720)).toBe(48);
+    expect(hourHeight('large', 720)).toBe(72);
+  });
+
+  it('steps between levels and stops at the ends', () => {
+    expect(stepZoom('normal', -1)).toBe('day');
+    expect(stepZoom('day', -1)).toBe('day');
+    expect(stepZoom('normal', 1)).toBe('large');
+    expect(stepZoom('large', 1)).toBe('large');
+  });
+
+  it('labels every other hour when hours are short', () => {
+    expect(hourLabelStep(16)).toBe(2);
+    expect(hourLabelStep(27)).toBe(1);
+    expect(hourLabelStep(48)).toBe(1);
   });
 });

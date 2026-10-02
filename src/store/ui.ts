@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { CalendarEvent, CalendarView } from '../types';
 import { EMPTY_FILTER, type CardFilter } from '../lib/filter';
-import { EMPTY_CAL_FILTER, type CalendarFilter } from '../lib/calendar';
+import { EMPTY_CAL_FILTER, WEEK_ZOOMS, type CalendarFilter, type WeekZoom } from '../lib/calendar';
 
 /* ------------------------------------------------------------ preferences */
 
@@ -12,6 +12,8 @@ interface Prefs {
   compactLabels: boolean;
   calView: CalendarView;
   calFilter: CalendarFilter;
+  /** Height of the hours in the week view. */
+  calZoom: WeekZoom;
 }
 
 const PREFS_KEY = 'pokekanban:prefs';
@@ -22,9 +24,11 @@ function readPrefs(): Prefs {
     compactLabels: false,
     calView: typeof window !== 'undefined' && window.innerWidth < 600 ? 'agenda' : 'month',
     calFilter: EMPTY_CAL_FILTER,
+    calZoom: 'normal',
   };
   try {
-    return { ...defaults, ...JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') };
+    const prefs: Prefs = { ...defaults, ...JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') };
+    return WEEK_ZOOMS.includes(prefs.calZoom) ? prefs : { ...prefs, calZoom: defaults.calZoom };
   } catch {
     return defaults;
   }
