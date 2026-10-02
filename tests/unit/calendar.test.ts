@@ -4,7 +4,8 @@ import {
 } from '../../shared/calendar.js';
 import type { AppData, CalendarEvent, Recurrence } from '../../src/types';
 import {
-  calendarItems, droppedRange, EMPTY_CAL_FILTER, hourHeight, hourLabelStep, resizedRange, selectedRange, stepZoom, timeRangeText,
+  calendarItems, clampHourPx, droppedRange, EMPTY_CAL_FILTER, fitHourPx, hourLabelStep, MAX_HOUR_PX, resizedRange, selectedRange,
+  timeRangeText,
 } from '../../src/lib/calendar';
 import * as S from '../../src/store/store';
 import * as C from '../../src/store/calendar';
@@ -289,25 +290,20 @@ describe('normalize (calendar)', () => {
 });
 
 describe('week view zoom', () => {
-  it('fits the 24 hours in the visible height when showing the whole day', () => {
-    expect(hourHeight('day', 720)).toBe(30);
-    expect(24 * hourHeight('day', 700)).toBeLessThanOrEqual(700);
+  it('fits the 24 hours in the visible height when zoomed all the way out', () => {
+    expect(fitHourPx(720)).toBe(30);
+    expect(24 * fitHourPx(700)).toBeLessThanOrEqual(700);
     // Too small: hours keep a minimum height and the grid scrolls.
-    expect(hourHeight('day', 240)).toBe(16);
-    // Not measured yet.
-    expect(hourHeight('day', 0)).toBe(48);
+    expect(fitHourPx(240)).toBe(16);
   });
 
-  it('uses fixed heights for the other levels', () => {
-    expect(hourHeight('normal', 720)).toBe(48);
-    expect(hourHeight('large', 720)).toBe(72);
-  });
-
-  it('steps between levels and stops at the ends', () => {
-    expect(stepZoom('normal', -1)).toBe('day');
-    expect(stepZoom('day', -1)).toBe('day');
-    expect(stepZoom('normal', 1)).toBe('large');
-    expect(stepZoom('large', 1)).toBe('large');
+  it('keeps hours between the whole day and the tallest size', () => {
+    expect(clampHourPx(48, 720)).toBe(48);
+    expect(clampHourPx(0, 720)).toBe(30);
+    expect(clampHourPx(500, 720)).toBe(MAX_HOUR_PX);
+    expect(clampHourPx(Number.NaN, 720)).toBe(48);
+    // On a tall screen the usual size would leave room: it grows to fill it.
+    expect(clampHourPx(48, 1440)).toBe(60);
   });
 
   it('labels every other hour when hours are short', () => {

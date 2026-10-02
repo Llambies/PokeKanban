@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { CalendarEvent, CalendarView } from '../types';
 import { EMPTY_FILTER, type CardFilter } from '../lib/filter';
-import { EMPTY_CAL_FILTER, WEEK_ZOOMS, type CalendarFilter, type WeekZoom } from '../lib/calendar';
+import { DEFAULT_HOUR_PX, EMPTY_CAL_FILTER, type CalendarFilter } from '../lib/calendar';
 
 /* ------------------------------------------------------------ preferences */
 
@@ -12,8 +12,8 @@ interface Prefs {
   compactLabels: boolean;
   calView: CalendarView;
   calFilter: CalendarFilter;
-  /** Height of the hours in the week view. */
-  calZoom: WeekZoom;
+  /** Height in px of an hour in the week view (0: the whole day on screen, whatever its height). */
+  calHourPx: number;
 }
 
 const PREFS_KEY = 'pokekanban:prefs';
@@ -24,11 +24,14 @@ function readPrefs(): Prefs {
     compactLabels: false,
     calView: typeof window !== 'undefined' && window.innerWidth < 600 ? 'agenda' : 'month',
     calFilter: EMPTY_CAL_FILTER,
-    calZoom: 'normal',
+    calHourPx: DEFAULT_HOUR_PX,
   };
   try {
-    const prefs: Prefs = { ...defaults, ...JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') };
-    return WEEK_ZOOMS.includes(prefs.calZoom) ? prefs : { ...prefs, calZoom: defaults.calZoom };
+    const { calZoom, ...saved } = JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}');
+    const prefs: Prefs = { ...defaults, ...saved };
+    // The first version of the zoom had three levels.
+    if (saved.calHourPx === undefined && calZoom) prefs.calHourPx = ({ day: 0, normal: 48, large: 72 } as Record<string, number>)[calZoom] ?? DEFAULT_HOUR_PX;
+    return typeof prefs.calHourPx === 'number' ? prefs : { ...prefs, calHourPx: DEFAULT_HOUR_PX };
   } catch {
     return defaults;
   }

@@ -7,8 +7,8 @@ import { editOccurrence } from '../../store/calendar';
 import { getData, updateCard } from '../../store/store';
 import { monthMatrix, toDateKey, todayKey, WEEKDAYS_SHORT } from '../../lib/dates';
 import {
-  calendarItems, dayMonthText, droppedRange, fromTotal, hourHeight, hourLabelStep, itemTitle, KIND_INFO, KIND_ORDER, resizedRange,
-  selectedRange, stepZoom, timeRangeText, toTotal, WEEK_ZOOM_LABELS, type CalItem,
+  calendarItems, clampHourPx, dayMonthText, droppedRange, fitHourPx, fromTotal, hourLabelStep, itemTitle, KIND_INFO, KIND_ORDER,
+  MAX_HOUR_PX, resizedRange, selectedRange, timeRangeText, toTotal, type CalItem,
 } from '../../lib/calendar';
 import { dayToKey, keyToDay, weekdayOf, WEEKDAY_NAMES } from '../../../shared/calendar.js';
 import { IconGlyph } from '../common/LabelChip';
@@ -488,23 +488,31 @@ function useWeekDrag() {
 
 type WeekDrag = ReturnType<typeof useWeekDrag>['actions'];
 
+/** Each zoom button (or − / + key) makes hours this many times shorter or taller. */
+const ZOOM_STEP = 1.5;
+
+/** Zoom buttons of the week view on screen, so the − / + keys of the calendar page can use them. */
+let zoomButtons: ((dir: -1 | 1) => void) | null = null;
+
 /** Zooms the week view out (`-1`, more hours on screen) or in (`1`, taller hours). */
 export function zoomWeek(dir: -1 | 1): void {
-  const zoom = usePrefs.getState().calZoom;
-  const next = stepZoom(zoom, dir);
-  if (next !== zoom) setPrefs({ calZoom: next });
+  zoomButtons?.(dir);
 }
 
 /**
- * Height of an hour for the zoom level chosen, measured on the scrolling grid, and keeps the same time on
- * screen when it changes: the one under the pointer (Ctrl + wheel) or the middle of the grid (buttons, keys).
+ * Smooth zoom of the week grid: Ctrl + wheel (and pinching a touchpad) on a computer, pinching on a touch
+ * screen, and animated steps with the buttons. Hours go from "the whole day on screen" (measured on the
+ * scrolling grid) to MAX_HOUR_PX, and the time under the pointer, the fingers or the middle of the grid
+ * stays in place.
  */
-function useWeekZoom(scroller: React.RefObject<HTMLDivElement | null>) {
-  const zoom = usePrefs((s) => s.calZoom);
+function useWeekZoom(week: React.RefObject<HTMLDivElement | null>, scroller: React.RefObject<HTMLDivElement | null>) {
+  const saved = usePrefs((s) => s.calHourPx);
   const [available, setAvailable] = useState(0);
-  const hourPx = hourHeight(zoom, available);
-  /** Hour height the last known scroll position was measured with, and that position. */
+  const hourPx = clampHourPx(saved, available);
+  /** What the grid shows now: its hour height and scroll position (kept up to date on scroll). */
   const seen = useRef({ hourPx, top: 0 });
+  const limits = useRef({ available, hourPx });
+  limits.current = { available, hourPx };
   /** Time (minutes of the day) to keep `y` px below the top of the grid after the next zoom change. */
   const focus = useRef<{ minutes: number; y: number } | null>(null);
 
@@ -522,7 +530,7 @@ function useWeekZoom(scroller: React.RefObject<HTMLDivElement | null>) {
   useLayoutEffect(() => {
     const el = scroller.current;
     const prev = seen.current;
-    if (!el || prev.hourPx === hourPx) return;
+    if (!el || (prev.hourPx === hourPx && !focus.current)) return;
     const y = focus.current?.y ?? el.clientHeight / 2;
     const minutes = focus.current?.minutes ?? ((prev.top + y) / prev.hourPx) * 60;
     focus.current = null;
@@ -530,31 +538,103 @@ function useWeekZoom(scroller: React.RefObject<HTMLDivElement | null>) {
     seen.current = { hourPx, top: el.scrollTop };
   }, [scroller, hourPx]);
 
-  // Ctrl + wheel (and pinching a touchpad) zooms the grid instead of the page.
   useEffect(() => {
+    const root = week.current;
     const el = scroller.current;
-    if (!el) return;
-    let delta = 0;
+    if (!root || !el) return;
+    /** Time at `y` px below the top of the grid, with what is on screen now (or about to be, mid-gesture). */
+    const minutesAt = (y: number) => focus.current?.minutes ?? ((el.scrollTop + y) / seen.current.hourPx) * 60;
+    /** Hours `to` px tall, keeping `minutes` of the day `y` px below the top of the grid. */
+    const zoomTo = (to: number, minutes: number, y: number) => {
+      const next = Math.round(clampHourPx(to, limits.current.available) * 100) / 100;
+      focus.current = { minutes, y };
+      if (next === limits.current.hourPx) {
+        // Already at the limit: only the position follows (moving two fingers still scrolls).
+        el.scrollTop = (minutes / 60) * next - y;
+        focus.current = null;
+        return;
+      }
+      // Several wheel or touch events can arrive before the next render: they build on each other.
+      limits.current.hourPx = next;
+      setPrefs({ calHourPx: next });
+    };
+    const gridY = (clientY: number) => Math.max(0, Math.min(el.clientHeight, clientY - el.getBoundingClientRect().top));
+
+    // Ctrl + wheel anywhere on the week zooms the grid, never the page.
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      delta += e.deltaY;
-      if (Math.abs(delta) < 40) return;
-      const dir = delta > 0 ? -1 : 1;
-      delta = 0;
-      const y = e.clientY - el.getBoundingClientRect().top;
-      focus.current = { minutes: ((el.scrollTop + y) / seen.current.hourPx) * 60, y };
-      zoomWeek(dir);
+      // A mouse wheel notch (~100) is about 22 % in or out; a touchpad pinch sends many small steps.
+      const delta = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+      const y = gridY(e.clientY);
+      zoomTo(limits.current.hourPx * Math.exp(-delta * 0.0025), minutesAt(y), y);
     };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [scroller]);
+
+    // Pinch with two fingers: hours follow the distance between them, the time between them follows them.
+    let pinch: { distance: number; hourPx: number; minutes: number } | null = null;
+    const fingers = (e: TouchEvent) => {
+      const [a, b] = [e.touches[0], e.touches[1]];
+      return { distance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), y: gridY((a.clientY + b.clientY) / 2) };
+    };
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return;
+      const { distance, y } = fingers(e);
+      pinch = { distance: Math.max(1, distance), hourPx: limits.current.hourPx, minutes: minutesAt(y) };
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pinch || e.touches.length !== 2) return;
+      if (e.cancelable) e.preventDefault();
+      const { distance, y } = fingers(e);
+      zoomTo(pinch.hourPx * (distance / pinch.distance), pinch.minutes, y);
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinch = null;
+    };
+    // Safari's own pinch gesture.
+    const onGesture = (e: Event) => e.preventDefault();
+
+    // Buttons and keys: a short animation towards the next step, around the middle of the grid.
+    let frame = 0;
+    zoomButtons = (dir) => {
+      cancelAnimationFrame(frame);
+      const from = limits.current.hourPx;
+      const to = clampHourPx(dir > 0 ? from * ZOOM_STEP : from / ZOOM_STEP, limits.current.available);
+      const y = el.clientHeight / 2;
+      const minutes = minutesAt(y);
+      const start = performance.now();
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - start) / 180);
+        zoomTo(from + (to - from) * (1 - (1 - t) ** 3), minutes, y);
+        if (t < 1) frame = requestAnimationFrame(tick);
+      };
+      frame = requestAnimationFrame(tick);
+    };
+
+    root.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    el.addEventListener('touchcancel', onTouchEnd);
+    root.addEventListener('gesturestart', onGesture);
+    root.addEventListener('gesturechange', onGesture);
+    return () => {
+      cancelAnimationFrame(frame);
+      zoomButtons = null;
+      root.removeEventListener('wheel', onWheel);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+      root.removeEventListener('gesturestart', onGesture);
+      root.removeEventListener('gesturechange', onGesture);
+    };
+  }, [week, scroller]);
 
   /** Call on scroll and after moving the grid, so a zoom change knows what was on screen. */
   const remember = () => {
     if (scroller.current) seen.current = { hourPx, top: scroller.current.scrollTop };
   };
-  return { zoom, hourPx, remember };
+  return { hourPx, atMin: hourPx <= fitHourPx(available), atMax: hourPx >= MAX_HOUR_PX, remember };
 }
 
 export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day: string) => void }) {
@@ -567,8 +647,9 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
   useEffect(() => {
     if (!drafting) dnd.closeNew();
   }, [drafting, dnd]);
+  const week = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
-  const { zoom, hourPx, remember } = useWeekZoom(scroller);
+  const { hourPx, atMin, atMax, remember } = useWeekZoom(week, scroller);
   const labelStep = hourLabelStep(hourPx);
   const now = useNow();
   const today = todayKey();
@@ -585,16 +666,16 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
   }, [days[0]]);
 
   return (
-    <div className={`cal-week cal-week--${zoom}`} style={{ '--hour': `${hourPx}px` } as React.CSSProperties}>
+    <div ref={week} className={`cal-week ${hourPx >= 64 ? 'is-tall' : ''}`} style={{ '--hour': `${hourPx}px` } as React.CSSProperties}>
       <div className="cal-week__head">
         <div className="cal-week__gutter cal-week__zoom">
           <button
             type="button"
             className="icon-btn icon-btn--xs"
             onClick={() => zoomWeek(-1)}
-            disabled={zoom === 'day'}
+            disabled={atMin}
             aria-label="Alejar: ver más horas"
-            title={`Alejar (−) · ahora: ${WEEK_ZOOM_LABELS[zoom]}`}
+            title="Alejar (−, Ctrl + rueda o pellizcar)"
           >
             <ZoomOut size={15} />
           </button>
@@ -602,9 +683,9 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
             type="button"
             className="icon-btn icon-btn--xs"
             onClick={() => zoomWeek(1)}
-            disabled={zoom === 'large'}
+            disabled={atMax}
             aria-label="Acercar: horas más altas"
-            title={`Acercar (+) · ahora: ${WEEK_ZOOM_LABELS[zoom]}`}
+            title="Acercar (+, Ctrl + rueda o pellizcar)"
           >
             <ZoomIn size={15} />
           </button>
@@ -627,7 +708,7 @@ export function WeekView({ anchor, onSelect }: { anchor: string; onSelect: (day:
           <WeekAllDay key={day} day={day} items={(items.get(day) ?? []).filter((it) => it.allDay)} over={over === `all:${day}`} setOver={dnd.setOver} />
         ))}
       </div>
-      <div className={`cal-week__scroll ${zoom === 'day' ? 'is-fit' : ''}`} ref={scroller} onScroll={remember}>
+      <div className="cal-week__scroll" ref={scroller} onScroll={remember}>
         <div className="cal-week__grid" style={{ height: 24 * hourPx }}>
           <div className="cal-week__gutter cal-week__hours">
             {Array.from({ length: 24 }, (_, h) => (

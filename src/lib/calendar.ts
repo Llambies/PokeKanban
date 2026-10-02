@@ -372,27 +372,21 @@ export function timeRangeText(start: string, end: string | null): string {
 
 /* -------------------------------------------------------- week view zoom */
 
-/** How tall the hours of the week view are: the whole day on screen, the usual height or taller. */
-export type WeekZoom = 'day' | 'normal' | 'large';
+/** Usual height of an hour in the week view, in px. */
+export const DEFAULT_HOUR_PX = 48;
+/** Tallest hours (zoomed all the way in): 15 minutes are 36 px. */
+export const MAX_HOUR_PX = 144;
+/** Fully zoomed out never makes hours shorter than this: on very small screens the grid scrolls a little. */
+const MIN_HOUR_PX = 16;
 
-export const WEEK_ZOOMS: WeekZoom[] = ['day', 'normal', 'large'];
-
-export const WEEK_ZOOM_LABELS: Record<WeekZoom, string> = { day: 'Día completo', normal: 'Normal', large: 'Amplio' };
-
-const HOUR_HEIGHTS = { normal: 48, large: 72 };
-/** "Whole day" never makes hours shorter than this: on very small screens the grid scrolls a little. */
-const MIN_DAY_HOUR = 16;
-
-/** Height in px of one hour of the week grid; "day" fits the 24 hours in `available` px (the visible height). */
-export function hourHeight(zoom: WeekZoom, available: number): number {
-  if (zoom === 'day') return available > 0 ? Math.max(MIN_DAY_HOUR, Math.floor((available / 24) * 100) / 100) : HOUR_HEIGHTS.normal;
-  return HOUR_HEIGHTS[zoom] ?? HOUR_HEIGHTS.normal;
+/** Hour height that fits the 24 hours in `available` px (the visible height of the grid). */
+export function fitHourPx(available: number): number {
+  return available > 0 ? Math.max(MIN_HOUR_PX, Math.floor((available / 24) * 100) / 100) : MIN_HOUR_PX;
 }
 
-/** The next zoom level towards more hours (`-1`) or bigger hours (`1`); stays at the ends. */
-export function stepZoom(zoom: WeekZoom, dir: -1 | 1): WeekZoom {
-  const i = Math.max(0, WEEK_ZOOMS.indexOf(zoom));
-  return WEEK_ZOOMS[clamp(i + dir, 0, WEEK_ZOOMS.length - 1)];
+/** `hourPx` kept between "the whole day on screen" and the tallest hours. */
+export function clampHourPx(hourPx: number, available: number): number {
+  return clamp(Number.isFinite(hourPx) ? hourPx : DEFAULT_HOUR_PX, fitHourPx(available), MAX_HOUR_PX);
 }
 
 /** Every how many hours the grid gets a label, so they don't overlap when hours are short. */

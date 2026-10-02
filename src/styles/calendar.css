@@ -569,14 +569,12 @@
 }
 
 .cal-week__scroll {
-  max-height: calc(100vh - var(--topbar-h) - 200px);
+  /* A fixed height: zoomed all the way out, the 24 hours fill it. */
+  height: calc(100vh - var(--topbar-h) - 200px);
   min-height: 320px;
   overflow-y: auto;
-}
-
-/* "Whole day": a fixed height that the 24 hours fill. */
-.cal-week__scroll.is-fit {
-  height: calc(100vh - var(--topbar-h) - 200px);
+  /* Pinching zooms the grid (views.tsx), not the page. */
+  touch-action: pan-y;
 }
 
 .cal-week__grid {
@@ -609,6 +607,21 @@
     transparent var(--hour)
   );
   cursor: cell;
+}
+
+/* Tall hours (zoomed in): a fainter line at the half hour. */
+.cal-week.is-tall .cal-week__col {
+  background-image:
+    repeating-linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent var(--hour)),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--hour) / 2),
+      color-mix(in srgb, var(--border) 45%, transparent) calc(var(--hour) / 2),
+      color-mix(in srgb, var(--border) 45%, transparent) calc(var(--hour) / 2 + 1px),
+      transparent calc(var(--hour) / 2 + 1px),
+      transparent var(--hour)
+    );
 }
 
 .cal-week__now {

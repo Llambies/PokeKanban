@@ -395,11 +395,15 @@ try {
   const coffee = page.locator('.cal-block', { hasText: 'Café con Marta' });
   check((await coffee.locator('.cal-block__time').textContent()) === '14:00–15:30', 'y el evento se crea con esa duración');
   check((await page.locator('.cal-block--preview').count()) === 0, 'sin bloque fantasma al cerrar el editor');
-  // Zoom: "whole day" fits 00–24 without scrolling, and dragging still gives the right times.
+  // Zoom: zoomed all the way out, 00–24 fit without scrolling, and dragging still gives the right times.
   const scrollSize = () => page.locator('.cal-week__scroll').evaluate((el) => ({ client: el.clientHeight, scroll: el.scrollHeight, grid: el.firstElementChild.offsetHeight }));
-  await page.locator('.cal-week__zoom button[aria-label^="Alejar"]').click();
+  const zoomOut = page.locator('.cal-week__zoom button[aria-label^="Alejar"]');
+  for (let i = 0; i < 6 && !(await zoomOut.isDisabled()); i++) {
+    await zoomOut.click();
+    await page.waitForTimeout(250);
+  }
   const fit = await scrollSize();
-  check(fit.scroll <= fit.client + 1, `«día completo» enseña las 24 horas sin scroll (${fit.grid}px en ${fit.client}px)`);
+  check(fit.scroll <= fit.client + 1, `alejando del todo se ven las 24 horas sin scroll (${fit.grid}px en ${fit.client}px)`);
   const dayCol = await coffee.locator('xpath=..').boundingBox();
   const hour = dayCol.height / 24;
   await page.mouse.move(dayCol.x + dayCol.width / 2, dayCol.y + 18 * hour + 2);
@@ -409,12 +413,35 @@ try {
   check(fitTime === '18:00 – 19:45', `con el zoom alejado, arrastrar sigue dando la hora correcta (${fitTime})`);
   await page.keyboard.press('Escape');
   await page.mouse.up();
-  await page.keyboard.press('+');
-  await page.keyboard.press('+');
-  const large = await scrollSize();
-  check(large.grid === 24 * 72, `«amplio» hace las horas más altas (${large.grid}px)`);
-  await page.keyboard.press('-');
-  check((await scrollSize()).grid === 24 * 48, 'y − vuelve al tamaño normal');
+  // Ctrl + wheel zooms the grid smoothly, around the pointer, and not the page.
+  await page.evaluate(() => window.addEventListener('wheel', (e) => (window.__wheelZoomed = !e.defaultPrevented), { once: true }));
+  const coffeeTop = (await coffee.boundingBox()).y;
+  await page.mouse.move(dayCol.x + dayCol.width / 2, coffeeTop);
+  await page.keyboard.down('Control');
+  await page.mouse.wheel(0, -100);
+  await page.keyboard.up('Control');
+  await page.waitForTimeout(200);
+  const wheeled = await scrollSize();
+  check(wheeled.grid > fit.grid * 1.15 && wheeled.grid < fit.grid * 1.4, `Ctrl + rueda acerca un poco (${fit.grid}px → ${wheeled.grid}px)`);
+  check((await page.evaluate(() => window.__wheelZoomed)) === false, 'y no hace zoom de la ventana');
+  const coffeeShift = Math.abs((await coffee.boundingBox()).y - coffeeTop);
+  check(coffeeShift < 4, `la hora bajo el ratón se queda en su sitio (${coffeeShift.toFixed(1)}px)`);
+  // Pinching with two fingers on a touch screen.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
+  const grid = await page.locator('.cal-week__scroll').boundingBox();
+  const px = grid.x + grid.width / 2;
+  const py = grid.y + grid.height / 2;
+  const touch = (type, d) => cdp.send('Input.dispatchTouchEvent', {
+    type, touchPoints: type === 'touchEnd' ? [] : [{ x: px, y: py - d, id: 0 }, { x: px, y: py + d, id: 1 }],
+  });
+  await touch('touchStart', 40);
+  for (let d = 45; d <= 80; d += 5) await touch('touchMove', d);
+  await touch('touchEnd', 0);
+  await page.waitForTimeout(200);
+  const pinched = await scrollSize();
+  check(Math.abs(pinched.grid / wheeled.grid - 2) < 0.1, `pellizcar acerca siguiendo los dedos (${wheeled.grid}px → ${pinched.grid}px)`);
+  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: false });
   await page.locator('.cal-toolbar__views button', { hasText: 'Mes' }).click();
   // Pokémon icons in the icon picker.
   await page.locator('.cal-chip', { hasText: 'Gimnasio' }).first().click();
