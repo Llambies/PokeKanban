@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import {
   CalendarDays, ChevronDown, Cloud, LayoutDashboard, CloudOff, CloudUpload, Download, HardDrive, Keyboard, Monitor, Moon, Plus, Redo2, Settings,
-  LogOut, Star, Sun, TriangleAlert, Undo2, Upload, Tags,
+  LogOut, Smartphone, Star, Sun, TriangleAlert, Undo2, Upload, Tags,
 } from 'lucide-react';
 import { redo, undo, useStore } from '../../store/store';
 import { logout, usePersist } from '../../store/persistence';
@@ -9,6 +9,8 @@ import { setPrefs, usePrefs, useUI } from '../../store/ui';
 import { navigate, useRoute } from '../../lib/router';
 import { getBoardBackground } from '../../lib/colors';
 import { exportAll, importFromFile } from '../../lib/backup';
+import { downloadAndroidApp } from '../../lib/download';
+import { isNativeApp } from '../../lib/native';
 import { openMenuAt, type MenuItem } from '../contextmenu/menuStore';
 import { Popover } from '../common/Popover';
 import { CreateBoardForm } from '../home/CreateBoardForm';
@@ -166,6 +168,12 @@ export function Header() {
           if (id) navigate({ boardId: id });
         },
       },
+      ...(isNativeApp()
+        ? []
+        : [
+            { kind: 'separator' as const },
+            { label: 'Descargar la app de Android', icon: <Smartphone size={15} />, hint: 'APK', onSelect: downloadAndroidApp },
+          ]),
       ...(usePersist.getState().authEnabled
         ? [
             { kind: 'separator' as const },

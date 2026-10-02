@@ -48,3 +48,19 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     return ok;
   }
 }
+
+/** Latest Android app, published by the "App Android" workflow (.github/workflows/android.yml). */
+export const ANDROID_APK_URL = 'https://github.com/Llambies/PokeKanban/releases/download/android/PokeKanban.apk';
+
+export function downloadAndroidApp(): void {
+  const a = document.createElement('a');
+  a.href = ANDROID_APK_URL;
+  a.download = 'PokeKanban.apk';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+export function isAndroidBrowser(): boolean {
+  return /Android/i.test(navigator.userAgent);
+}

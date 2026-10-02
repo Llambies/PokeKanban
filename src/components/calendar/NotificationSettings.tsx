@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { AlarmClock, BellOff, BellRing, Send } from 'lucide-react';
+import { AlarmClock, BellOff, BellRing, Send, Smartphone } from 'lucide-react';
 import { disablePush, enablePush, needsHomeScreen, refreshPush, testPush, usePush } from '../../lib/push';
 import { isNativeApp, Native, type NativeStatus } from '../../lib/native';
 import { toast } from '../../store/ui';
+import { downloadAndroidApp, isAndroidBrowser } from '../../lib/download';
 
 /** Inside the Android app: native notifications with exact alarms. */
 function NativeNotificationSettings() {
@@ -113,6 +114,14 @@ function WebNotificationSettings() {
         <p className="small muted">
           Dispositivos con avisos: {devices.join(', ')}
         </p>
+      )}
+      {isAndroidBrowser() && (
+        <>
+          <p className="small muted">En Android, la app avisa a la hora exacta y trae un widget con la agenda.</p>
+          <button type="button" className="btn btn--sm" onClick={downloadAndroidApp}>
+            <Smartphone size={14} /> Descargar la app de Android
+          </button>
+        </>
       )}
     </div>
   );
