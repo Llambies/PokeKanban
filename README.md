@@ -188,7 +188,27 @@ cd android && ./gradlew assembleRelease   # android/app/build/outputs/apk/releas
 
 Con el servidor, cada guardado lleva un número de revisión. Si cambias datos desde dos dispositivos a la vez,
 la app te avisa y te deja elegir qué versión conservar en vez de sobrescribir en silencio. Al volver a una pestaña
-se cargan automáticamente los cambios hechos desde otro dispositivo.
+se cargan automáticamente los cambios hechos desde otro dispositivo (y cada 30 segundos con la pestaña visible).
+
+## Agentes (Claude Code, Codex…)
+
+El servidor incluye un servidor **MCP** (`/api/mcp`) con un CRUD completo de tableros, listas, etiquetas, tarjetas
+(checklists, comentarios, campos personalizados, archivar, mover) y eventos del calendario (repeticiones, avisos,
+marcar como hechos). Las claves se gestionan desde la web: *Ajustes → Claves de API (agentes)*. Al crear una se muestra
+una sola vez, junto con el comando listo para copiar; en el servidor solo se guarda su hash y se puede revocar en cualquier momento.
+Cada clave es de **lectura y escritura** o de **solo lectura**.
+
+```bash
+# Claude Code
+claude mcp add --transport http pokekanban https://kanban.llambies.com/api/mcp --header "Authorization: Bearer pk_…"
+# Codex
+export POKEKANBAN_API_KEY=pk_…
+codex mcp add pokekanban --url https://kanban.llambies.com/api/mcp --bearer-token-env-var POKEKANBAN_API_KEY
+```
+
+Las mismas herramientas están disponibles como JSON simple: `GET /api/agent` las lista y
+`POST /api/agent/<herramienta>` con los argumentos en el cuerpo ejecuta una (cabecera `Authorization: Bearer pk_…`).
+Los cambios se guardan como cualquier otro (con copias horarias) y la web los recoge sola. Las herramientas están en `server/agent.mjs`.
 
 ## Tests
 
@@ -200,7 +220,7 @@ npm run build && npm run test:e2e # test de extremo a extremo con Chromium (play
 ## Estructura
 
 ```
-server/          núcleo de la API (compartido por Node y Cloudflare), servidor Node, almacenamiento en disco y Web Push
+server/          núcleo de la API (compartido por Node y Cloudflare), herramientas MCP para agentes, servidor Node, disco y Web Push
 worker/          Worker de Cloudflare (Durable Object para los datos y alarmas para los avisos)
 shared/          motor del calendario (repeticiones, avisos, agenda) usado por la web, el servidor y el widget
 android/         app Android (Capacitor): widget, alarmas y sincronización en segundo plano

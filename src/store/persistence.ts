@@ -44,6 +44,7 @@ const LS_KEY = 'pokekanban:data';
 const API = 'api/data';
 const SAVE_DELAY = 600;
 const RETRY_DELAY = 5000;
+const REMOTE_POLL = 30_000;
 /** Browsers cap keepalive request bodies at 64 KiB (in bytes). */
 const KEEPALIVE_LIMIT = 60_000;
 
@@ -346,6 +347,11 @@ function installListeners(): void {
     if (document.visibilityState === 'visible') void checkRemote();
     else void flush();
   });
+
+  // Changes made by other devices or by agents (API keys) show up without reloading.
+  setInterval(() => {
+    if (document.visibilityState === 'visible') void checkRemote();
+  }, REMOTE_POLL);
 
   // Keep several tabs in sync when running in local mode.
   window.addEventListener('storage', (e) => {

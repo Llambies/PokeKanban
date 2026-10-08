@@ -101,6 +101,7 @@ interface UIState {
   /** List whose "add card" composer is open. */
   composerListId: string | null;
   shortcutsOpen: boolean;
+  apiKeysOpen: boolean;
   searchOpen: boolean;
   toasts: Toast[];
   confirm: ConfirmRequest | null;
@@ -117,6 +118,7 @@ export const useUI = create<UIState>(() => ({
   editingCardId: null,
   composerListId: null,
   shortcutsOpen: false,
+  apiKeysOpen: false,
   searchOpen: false,
   toasts: [],
   confirm: null,

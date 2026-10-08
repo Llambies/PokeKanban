@@ -8,6 +8,7 @@ import { syncSystemBars } from './lib/native';
 import { Header } from './components/layout/Header';
 import { ConflictBanner } from './components/layout/ConflictBanner';
 import { ShortcutsHelp } from './components/layout/ShortcutsHelp';
+import { ApiKeysDialog } from './components/layout/ApiKeysDialog';
 import { LoginScreen } from './components/layout/LoginScreen';
 import { useGlobalShortcuts } from './components/layout/useGlobalShortcuts';
 import { HomePage } from './components/home/HomePage';
@@ -162,6 +163,7 @@ export function App() {
       <ContextMenuHost />
       <DialogHost />
       <ShortcutsHelp />
+      <ApiKeysDialog />
     </div>
   );
 }

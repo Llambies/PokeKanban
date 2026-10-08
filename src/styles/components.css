@@ -868,3 +868,88 @@
 .bg-image .input {
   flex: 1;
 }
+
+/* ---------------------------------------------------------------- api keys */
+
+.api-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.api-keys code {
+  overflow-wrap: anywhere;
+}
+
+.api-keys__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.api-keys__form .input {
+  flex: 1 1 200px;
+  width: auto;
+}
+
+.api-keys__form .select {
+  flex: 0 1 190px;
+  width: auto;
+}
+
+.api-keys__created {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--success);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.api-keys__secret {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.api-keys__snippet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.api-keys__snippet pre {
+  margin: 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  white-space: pre;
+}
+
+.api-keys__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.api-keys__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.api-keys__info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}

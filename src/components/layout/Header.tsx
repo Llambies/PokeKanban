@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import {
-  CalendarDays, ChevronDown, Cloud, LayoutDashboard, CloudOff, CloudUpload, Download, HardDrive, Keyboard, Monitor, Moon, Plus, Redo2, Settings,
+  CalendarDays, ChevronDown, Cloud, LayoutDashboard, CloudOff, CloudUpload, Download, HardDrive, Keyboard, KeyRound, Monitor, Moon, Plus, Redo2, Settings,
   LogOut, Smartphone, Star, Sun, TriangleAlert, Undo2, Upload, Tags,
 } from 'lucide-react';
 import { redo, undo, useStore } from '../../store/store';
@@ -177,6 +177,12 @@ export function Header() {
           if (id) navigate({ boardId: id });
         },
       },
+      ...(usePersist.getState().mode === 'server'
+        ? [
+            { kind: 'separator' as const },
+            { label: 'Claves de API (agentes)…', icon: <KeyRound size={15} />, hint: 'MCP', onSelect: () => useUI.setState({ apiKeysOpen: true }) },
+          ]
+        : []),
       ...(isNativeApp()
         ? []
         : [

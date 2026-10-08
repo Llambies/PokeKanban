@@ -16,10 +16,16 @@
 //   POST /api/push/subscribe   <- { subscription, device }   POST /api/push/unsubscribe <- { endpoint }
 //   POST /api/push/test        <- { endpoint }               -> sends a test notification
 //   GET  /api/agenda?days=14   -> { today, timeZone, items[, reminders] }  (Android widget and alarms)
+//   GET  /api/keys             -> [{ id, name, scope, prefix, createdAt, lastUsedAt }]   (session; API keys for agents)
+//   POST /api/keys             <- { name, scope: 'read' | 'write' } -> { ...key, key: 'pk_…' } (shown only once)
+//   DELETE /api/keys/<id>      -> revokes the key
+//   POST /api/mcp              MCP server (JSON-RPC over HTTP) for Claude Code, Codex…   Authorization: Bearer pk_…
+//   GET  /api/agent            -> tools list      POST /api/agent/<tool> <- arguments  -> result   (same tools, plain JSON)
 //
 // When a password is configured every route except session/login/logout needs a valid session
 // cookie (HttpOnly, SameSite=Strict, HMAC-signed with a key derived from the password, so changing
 // the password logs every device out). Writes are only accepted from the app's own origin.
+// mcp and agent are the exception: they are for programs and need an API key instead (only its SHA-256 is stored).
 //
 // Storage adapter interface (all async):
 //   readDoc() -> string | null            writeDoc(text)
@@ -34,16 +40,20 @@
 import { agenda, collectReminders, dayKeyAt } from '../shared/calendar.js';
 import { generateVapidKeys, sendPush } from './push.mjs';
 import { pokemonKey, pokemonSpriteUrl } from '../shared/pokemon.js';
+import { ToolError, findTool, mcpMessage, toolContext, toolList } from './agent.mjs';
 
 const MAX_BODY = 50 * 1024 * 1024;
 const MAX_UPLOAD = 25 * 1024 * 1024;
 const MAX_DAILY_BACKUPS = 30;
 const SESSION_DAYS = 90;
 const COOKIE = 'pk_session';
+const MAX_AGENT_BODY = 2 * 1024 * 1024;
+const MAX_KEYS = 50;
+const KEY_TOUCH_MS = 60_000;
 const MAX_FAILED_LOGINS = 5;
 const LOCKOUT_MS = 5 * 60 * 1000;
 
-const ROUTE = /(?:^|\/)api\/(session|login|logout|meta|data|backups|uploads|push|agenda)(?:\/([^/]+))?\/?$/;
+const ROUTE = /(?:^|\/)api\/(session|login|logout|meta|data|backups|uploads|push|agenda|keys|mcp|agent)(?:\/([^/]+))?\/?$/;
 const MAX_LATE_ON_SAVE = 10 * 60 * 1000;
 const MAX_LATE_ON_ALARM = 6 * 3600 * 1000;
 const MAX_SUBSCRIPTIONS = 20;
@@ -247,19 +257,157 @@ export function createHandler({ storage, password = '', requirePassword = false,
         if (!body.force && body.baseRev !== current.rev) {
           return json(409, { error: 'conflict', rev: current.rev, savedAt: current.savedAt });
         }
-        const next = { rev: current.rev + 1, savedAt: new Date().toISOString(), data: body.data };
-        const text = JSON.stringify(next);
-        // Before the first save of each hour, keep the previous state as a backup.
-        await storage.snapshot(`pokekanban-${hourStamp()}h.json`);
-        await storage.writeDoc(text);
-        doc = { rev: next.rev, savedAt: next.savedAt, text };
-        await prune();
-        // Reminders may have changed: send what is due now and plan the next one.
-        await pushWork(MAX_LATE_ON_SAVE).catch(() => {});
+        const next = await commit(current, body.data);
         return json(200, { rev: next.rev, savedAt: next.savedAt });
       })
       .catch((err) => json(500, { error: String(err?.message ?? err) })));
     return result;
+  }
+
+  /** Writes a new revision (call it inside `queue`). */
+  async function commit(current, data) {
+    const next = { rev: current.rev + 1, savedAt: new Date().toISOString(), data };
+    const text = JSON.stringify(next);
+    // Before the first save of each hour, keep the previous state as a backup.
+    await storage.snapshot(`pokekanban-${hourStamp()}h.json`);
+    await storage.writeDoc(text);
+    doc = { rev: next.rev, savedAt: next.savedAt, text };
+    await prune();
+    // Reminders may have changed: send what is due now and plan the next one.
+    await pushWork(MAX_LATE_ON_SAVE).catch(() => {});
+    return next;
+  }
+
+  /* ------------------------------------------------------------- API keys */
+
+  let keys = null; // [{ id, name, scope, hash, prefix, createdAt, lastUsedAt }]
+  let keysQueue = Promise.resolve();
+
+  async function loadKeys() {
+    if (keys) return keys;
+    const raw = storage.getItem ? await storage.getItem('apikeys') : null;
+    keys = raw ? JSON.parse(raw) : [];
+    return keys;
+  }
+
+  /** Runs key changes one at a time and persists the result. */
+  function withKeys(fn) {
+    const result = keysQueue.then(async () => {
+      const list = await loadKeys();
+      const out = await fn(list);
+      if (storage.setItem) await storage.setItem('apikeys', JSON.stringify(list));
+      return out;
+    });
+    keysQueue = result.catch(() => {});
+    return result;
+  }
+
+  async function sha256Hex(value) {
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(value)));
+    return Array.from(digest, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  const publicKey = ({ hash, ...rest }) => rest;
+
+  async function handleKeys(request, param) {
+    if (request.method === 'GET' && !param) return json(200, (await loadKeys()).map(publicKey));
+    if (request.method === 'POST' && !param) {
+      let body;
+      try {
+        body = JSON.parse(decoder.decode(await readLimited(request, 10_000)));
+      } catch {
+        return json(400, { error: 'JSON inválido' });
+      }
+      const name = String(body?.name ?? '').trim().slice(0, 80);
+      if (!name) return json(400, { error: 'Pon un nombre a la clave' });
+      if (body.scope !== 'read' && body.scope !== 'write') return json(400, { error: 'El permiso debe ser "read" o "write"' });
+      const secret = `pk_${base64url(crypto.getRandomValues(new Uint8Array(32)))}`;
+      const entry = await withKeys(async (list) => {
+        if (list.length >= MAX_KEYS) throw new HttpError(400, 'Demasiadas claves: revoca alguna');
+        const created = { id: randomId(), name, scope: body.scope, hash: await sha256Hex(secret), prefix: secret.slice(0, 9), createdAt: Date.now(), lastUsedAt: null };
+        list.push(created);
+        return created;
+      });
+      return json(200, { ...publicKey(entry), key: secret });
+    }
+    if (request.method === 'DELETE' && param) {
+      const removed = await withKeys((list) => {
+        const index = list.findIndex((k) => k.id === param);
+        if (index >= 0) list.splice(index, 1);
+        return index >= 0;
+      });
+      return removed ? json(200, { ok: true }) : json(404, { error: 'No encontrada' });
+    }
+    return json(405, { error: 'Método no permitido' });
+  }
+
+  /** The API key of a `Bearer pk_…` request, or null. */
+  async function authenticateKey(request) {
+    const match = /^Bearer\s+(pk_[\w-]{20,})\s*$/i.exec(request.headers.get('authorization') ?? '');
+    if (!match) return null;
+    const hash = await sha256Hex(match[1]);
+    const key = (await loadKeys()).find((k) => k.hash === hash);
+    if (key && Date.now() - (key.lastUsedAt ?? 0) > KEY_TOUCH_MS) {
+      void withKeys(() => void (key.lastUsedAt = Date.now())).catch(() => {});
+    }
+    return key ?? null;
+  }
+
+  /* --------------------------------------------------------------- agents */
+
+  /** Runs a tool. Read-only tools see the current document; the others save a new revision. */
+  async function runTool(name, args, key) {
+    const tool = findTool(name);
+    if (!tool) throw new ToolError(`Herramienta desconocida: ${name}`, 404);
+    if (tool.write && key.scope !== 'write') throw new ToolError('Esta clave es de solo lectura', 403);
+    if (args === null || typeof args !== 'object' || Array.isArray(args)) throw new ToolError('Los argumentos deben ser un objeto');
+    if (!tool.write) {
+      const data = await currentData();
+      if (!data) throw new ToolError('Todavía no hay datos: abre la web una vez para crearlos', 409);
+      return tool.run(toolContext(data), args);
+    }
+    const run = queue.then(async () => {
+      const current = await load();
+      const data = JSON.parse(current.text).data;
+      if (!data) throw new ToolError('Todavía no hay datos: abre la web una vez para crearlos', 409);
+      const result = tool.run(toolContext(data), args);
+      await commit(current, data);
+      return result;
+    });
+    queue = run.catch(() => {});
+    return run;
+  }
+
+  async function handleAgent(request, resource, param, key) {
+    if (resource === 'agent') {
+      if (request.method === 'GET' && !param) return json(200, { tools: toolList() });
+      if (request.method !== 'POST' || !param) return json(405, { error: 'Método no permitido' });
+      let args = {};
+      const raw = decoder.decode(await readLimited(request, MAX_AGENT_BODY)).trim();
+      if (raw) {
+        try {
+          args = JSON.parse(raw);
+        } catch {
+          return json(400, { error: 'JSON inválido' });
+        }
+      }
+      return json(200, await runTool(param, args, key));
+    }
+    // MCP over HTTP (stateless, plain JSON responses).
+    if (request.method !== 'POST' || param) return json(405, { error: 'Método no permitido' }, { allow: 'POST' });
+    let body;
+    try {
+      body = JSON.parse(decoder.decode(await readLimited(request, MAX_AGENT_BODY)));
+    } catch {
+      return json(400, { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'JSON inválido' } });
+    }
+    const call = (name, args) => runTool(name, args, key);
+    if (Array.isArray(body)) {
+      const replies = (await Promise.all(body.map((m) => mcpMessage(m, call)))).filter(Boolean);
+      return replies.length ? json(200, replies) : new Response(null, { status: 202 });
+    }
+    const reply = await mcpMessage(body, call);
+    return reply ? json(200, reply) : new Response(null, { status: 202 });
   }
 
   /* ------------------------------------------------------------ reminders */
@@ -521,9 +669,16 @@ export function createHandler({ storage, password = '', requirePassword = false,
     const secure = ctx.secure ?? url.protocol === 'https:';
 
     try {
+      const configured = authEnabled || !requirePassword;
+      if (resource === 'mcp' || resource === 'agent') {
+        // Programs, not browsers: an API key replaces the session cookie and the same-origin check.
+        if (!configured) return json(503, { error: 'no-password', message: 'Falta configurar la contraseña (secreto POKEKANBAN_PASSWORD).' });
+        const key = await authenticateKey(request);
+        if (!key) return json(401, { error: 'auth', message: 'Falta una clave de API válida (Authorization: Bearer pk_…)' }, { 'www-authenticate': 'Bearer' });
+        return await handleAgent(request, resource, param, key);
+      }
       if (!isRead && !sameOrigin(request, url)) return json(403, { error: 'Origen no permitido' });
 
-      const configured = authEnabled || !requirePassword;
       if (resource === 'session' && isRead) {
         const authenticated = !authEnabled || (await sessionExpiry(request)) > 0;
         return json(200, { auth: authEnabled, authenticated, configured });
@@ -570,6 +725,7 @@ export function createHandler({ storage, password = '', requirePassword = false,
       return json(405, { error: 'Método no permitido' });
     }
     if (resource === 'push') return handlePush(request, url, param);
+    if (resource === 'keys') return handleKeys(request, param);
     if (resource === 'agenda' && !param && isRead) return handleAgenda(url);
     if (resource === 'backups' && isRead) {
       if (!param) {
