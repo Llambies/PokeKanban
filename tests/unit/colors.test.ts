@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { contrastRatio, contrastText, getBoardBackground } from '../../src/lib/colors';
-import { DARK_TEXT, LIGHT_TEXT } from '../../shared/palette.js';
+import { DARK_TEXT, HUES, iconColor, LIGHT_TEXT } from '../../shared/palette.js';
 
 describe('contrastText', () => {
   it('picks white on clearly dark backgrounds', () => {
@@ -89,3 +89,20 @@ function blackOver(hex: string, alpha: number): string {
   const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(v * (1 - alpha)));
   return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }
+
+describe('iconColor', () => {
+  it('uses the bold shade on light backgrounds and the normal one on dark backgrounds', () => {
+    expect(iconColor('green_subtle', 'light')).toBe('#1F845A');
+    expect(iconColor('green_bold', 'dark')).toBe('#4BCE97');
+    expect(iconColor(null, 'light')).toBeNull();
+    expect(iconColor('nope', 'dark')).toBeNull();
+  });
+
+  it('always reads on the background, also with custom colors', () => {
+    const keys = [...HUES.flatMap((h) => [h.hue, `${h.hue}_subtle`, `${h.hue}_bold`]), '#FFF5F5', '#111111', '#7F7F7F'];
+    for (const key of keys) {
+      expect(contrastRatio(iconColor(key, 'light')!, '#FFFFFF')).toBeGreaterThanOrEqual(3);
+      expect(contrastRatio(iconColor(key, 'dark')!, '#22272B')).toBeGreaterThanOrEqual(3);
+    }
+  });
+});

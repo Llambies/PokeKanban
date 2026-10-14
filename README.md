@@ -24,8 +24,9 @@ Los datos son tuyos: se guardan en un archivo JSON en tu máquina, en tu cuenta 
   **cualquiera de los 1025 Pokémon y sus ~490 formas** (regionales de Alola, Galar, Hisui y Paldea, megaevoluciones,
   Gigamax, Unown, Vivillon, Alcremie…), con iconos de [PokeAPI](https://pokeapi.co), búsqueda por nombre o número,
   atajos por región o tipo de forma, uno al azar y botón ✨ para elegir su **versión shiny**.
-  Los mismos iconos sirven para los eventos del calendario, el widget de Android y sus notificaciones (los de
-  react-icons, el widget los dibuja en un solo color).
+  Los mismos iconos sirven para los eventos del calendario, el widget de Android y sus notificaciones. En el inicio,
+  la agenda, el mes y el widget, los iconos de línea toman el color del evento, en un tono que se lee bien en tema
+  claro y oscuro.
 - **Cabeceras de lista de color**, con opción de teñir toda la columna.
 - **Portadas** de tarjeta (franja o tarjeta completa, color o imagen por URL).
 - **Separadores**: tarjetas que se muestran como cabeceras de color dentro de una lista.

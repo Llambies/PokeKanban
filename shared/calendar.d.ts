@@ -55,6 +55,9 @@ export interface AgendaItem {
   endTime: string;
   colorKey: string | null;
   color: string | null;
+  /** Color of the icon on the widget's light / dark background (null: grey). */
+  iconLight: string | null;
+  iconDark: string | null;
   icon: string | null;
   /** The event's react-icons icon ("ri:tb:TbFlame"), kept apart from `icon` for older widgets. */
   reactIcon: string | null;

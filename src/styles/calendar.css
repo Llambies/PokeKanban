@@ -118,6 +118,11 @@
   color: var(--item-fg);
 }
 
+/* Timed items have no background: their icon takes the item's color (see itemStyle). */
+.cal-chip--timed > svg {
+  color: var(--item-icon, currentColor);
+}
+
 .cal-chip--timed:hover,
 .cal-chip--filled:hover {
   filter: brightness(0.96);
@@ -391,7 +396,7 @@
 .agenda-row__icon {
   display: grid;
   place-items: center;
-  color: var(--text-subtle);
+  color: var(--item-icon, var(--text-subtle));
 }
 
 .agenda-row__main {

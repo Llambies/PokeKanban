@@ -9,3 +9,4 @@ export const HUES: Hue[];
 export const DARK_TEXT: string;
 export const LIGHT_TEXT: string;
 export function colorHex(key: string | null | undefined): string | null;
+export function iconColor(key: string | null | undefined, theme: 'light' | 'dark'): string | null;

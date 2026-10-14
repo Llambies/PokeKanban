@@ -135,6 +135,14 @@ describe('agenda', () => {
     expect(item.icon).toBe('lucide:Calendar');
     expect(item.reactIcon).toBe('ri:tb:TbFlame');
   });
+
+  it('gives the widget the icon color for its light and dark themes', () => {
+    const party = ev('2026-09-29T20:00', null, { title: 'Fiesta', color: 'green' });
+    const plain = ev('2026-09-29T21:00', null, { title: 'Cena' });
+    const [colored, grey] = agenda(dataWith([party, plain]), '2026-09-28', 7, { now: Date.UTC(2026, 8, 28, 10) });
+    expect([colored.iconLight, colored.iconDark]).toEqual(['#1F845A', '#4BCE97']);
+    expect([grey.iconLight, grey.iconDark]).toEqual([null, null]);
+  });
 });
 
 describe('calendar view items', () => {

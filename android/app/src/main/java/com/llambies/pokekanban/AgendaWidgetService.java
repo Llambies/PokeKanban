@@ -2,6 +2,7 @@ package com.llambies.pokekanban;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
@@ -88,12 +89,12 @@ public class AgendaWidgetService extends RemoteViewsService {
             return views;
         }
 
-        /** Same icon as in the app: its Lucide or react-icons icon, its Pokémon, or the emoji picked for the event. */
+        /** Same icon as in the app (in the item's color): its Lucide or react-icons icon, its Pokémon, or its emoji. */
         private void showIcon(RemoteViews views, JSONObject item) {
             Bitmap reactIcon = ReactIcons.bitmap(ctx, item.optString("reactIcon", ""));
             if (reactIcon != null) {
                 views.setImageViewBitmap(R.id.item_icon, reactIcon);
-                views.setInt(R.id.item_icon, "setColorFilter", ctx.getColor(R.color.widget_muted));
+                views.setInt(R.id.item_icon, "setColorFilter", iconTint(item));
                 views.setViewVisibility(R.id.item_icon, View.VISIBLE);
                 views.setViewVisibility(R.id.item_emoji, View.GONE);
                 return;
@@ -126,8 +127,21 @@ public class AgendaWidgetService extends RemoteViewsService {
             views.setViewVisibility(R.id.item_icon, drawable == 0 ? View.GONE : View.VISIBLE);
             if (drawable != 0) {
                 views.setImageViewResource(R.id.item_icon, drawable);
-                views.setInt(R.id.item_icon, "setColorFilter", ctx.getColor(R.color.widget_muted));
+                views.setInt(R.id.item_icon, "setColorFilter", iconTint(item));
             }
+        }
+
+        /** The item's color for its icon, in the shade for the widget's theme (grey if it has none). */
+        private int iconTint(JSONObject item) {
+            boolean night = (ctx.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                == Configuration.UI_MODE_NIGHT_YES;
+            String hex = item.optString(night ? "iconDark" : "iconLight", "");
+            try {
+                if (hex.startsWith("#")) return Color.parseColor(hex);
+            } catch (IllegalArgumentException ignored) {
+                // Fall back to grey.
+            }
+            return ctx.getColor(R.color.widget_muted);
         }
 
         /** Kind icons (as in the app) for agendas saved before items carried their icon. */

@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { Check, MapPin, Repeat } from 'lucide-react';
 import { getColor } from '../../lib/colors';
+import { iconColor } from '../../../shared/palette.js';
 import { durationText, itemTitle, type CalItem } from '../../lib/calendar';
 import { recurrenceSummary } from '../../lib/calendar';
 import { useStore } from '../../store/store';
@@ -40,7 +41,9 @@ function dragProps(item: CalItem) {
 export function itemStyle(item: Pick<CalItem, 'colorKey'>): CSSProperties | undefined {
   const color = getColor(item.colorKey);
   if (!color) return undefined;
-  return { '--item-bg': color.bg, '--item-fg': color.fg } as CSSProperties;
+  // The icon in the item's color, in a shade that reads on the theme's background.
+  const icon = `light-dark(${iconColor(item.colorKey, 'light')}, ${iconColor(item.colorKey, 'dark')})`;
+  return { '--item-bg': color.bg, '--item-fg': color.fg, '--item-icon': icon } as CSSProperties;
 }
 
 /** Compact chip for month cells and all-day rows. */

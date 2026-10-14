@@ -6,7 +6,7 @@
 // uses "day numbers" (days since 1970-01-01, computed in UTC) so it never trips over DST changes.
 // An occurrence is identified by the day it starts on ("YYYY-MM-DD").
 
-import { colorHex } from './palette.js';
+import { colorHex, iconColor } from './palette.js';
 
 const DAY_MS = 86400000;
 const MAX_STEPS = 200000;
@@ -444,6 +444,9 @@ export function agenda(data, fromKey, days, opts = {}) {
         endTime: end ? timeOf(end) : '',
         colorKey,
         color: colorHex(colorKey),
+        // The icon in the item's color, for the widget's light and dark themes.
+        iconLight: iconColor(colorKey, 'light'),
+        iconDark: iconColor(colorKey, 'dark'),
         // Effective icon: the event's own or its kind's (the widget draws the app's Lucide icons).
         // react-icons ones go apart: older versions of the widget don't know them and would print
         // the value, so they get the kind's icon there.
@@ -482,6 +485,9 @@ export function agenda(data, fromKey, days, opts = {}) {
         endTime: '',
         colorKey,
         color: colorHex(colorKey),
+        // The icon in the item's color, for the widget's light and dark themes.
+        iconLight: iconColor(colorKey, 'light'),
+        iconDark: iconColor(colorKey, 'dark'),
         icon: DEFAULT_KIND_ICONS.card,
         reactIcon: null,
         emoji: '📋',
