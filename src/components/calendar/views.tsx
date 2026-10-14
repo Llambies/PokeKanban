@@ -7,7 +7,7 @@ import { editOccurrence } from '../../store/calendar';
 import { getData, updateCard } from '../../store/store';
 import { monthMatrix, toDateKey, todayKey, WEEKDAYS_SHORT } from '../../lib/dates';
 import {
-  calendarItems, clampHourPx, dayMonthText, droppedRange, fitHourPx, fromTotal, hourLabelStep, itemTitle, KIND_INFO, KIND_ORDER,
+  calendarItems, clampHourPx, dayMonthText, droppedRange, durationText, fitHourPx, fromTotal, hourLabelStep, itemTitle, KIND_INFO, KIND_ORDER,
   MAX_HOUR_PX, resizedRange, selectedRange, timeRangeText, toTotal, type CalItem,
 } from '../../lib/calendar';
 import { dayToKey, keyToDay, weekdayOf, WEEKDAY_NAMES } from '../../../shared/calendar.js';
@@ -850,8 +850,11 @@ function GhostBlock({ ghost: { item, day, top, bottom, start, end }, hourPx }: {
       aria-hidden="true"
     >
       <span className="cal-block__time">{timeRangeText(start, end)}</span>
-      <span className="cal-block__title">
-        {item?.icon && <IconGlyph icon={item.icon} size={12} />} {item ? itemTitle(item) : 'Nuevo evento'}
+      <span className="cal-block__head">
+        <span className="cal-block__title">
+          {item?.icon && <IconGlyph icon={item.icon} size={12} />} {item ? itemTitle(item) : 'Nuevo evento'}
+        </span>
+        <span className="cal-block__duration">{durationText(start, end)}</span>
       </span>
     </div>
   );
@@ -939,8 +942,11 @@ const WeekColumn = memo(function WeekColumn({ day, items, hourPx, nowMinutes, ov
           onContextMenu={(e) => itemMenu(e, item)}
           title={`${item.time}${item.endTime ? `–${item.endTime}` : ''} ${itemTitle(item)}`}
         >
-          <span className="cal-block__title">
-            {item.icon && <IconGlyph icon={item.icon} size={12} />} {itemTitle(item)}
+          <span className="cal-block__head">
+            <span className="cal-block__title">
+              {item.icon && <IconGlyph icon={item.icon} size={12} />} {itemTitle(item)}
+            </span>
+            {item.end && <span className="cal-block__duration">{durationText(item.start, item.end)}</span>}
           </span>
           <span className="cal-block__time">
             {item.time}

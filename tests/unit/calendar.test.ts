@@ -4,7 +4,7 @@ import {
 } from '../../shared/calendar.js';
 import type { AppData, CalendarEvent, Recurrence } from '../../src/types';
 import {
-  calendarItems, clampHourPx, droppedRange, EMPTY_CAL_FILTER, fitHourPx, hourLabelStep, MAX_HOUR_PX, resizedRange, selectedRange,
+  calendarItems, clampHourPx, droppedRange, durationText, EMPTY_CAL_FILTER, fitHourPx, hourLabelStep, MAX_HOUR_PX, resizedRange, selectedRange,
   timeRangeText,
 } from '../../src/lib/calendar';
 import * as S from '../../src/store/store';
@@ -170,6 +170,16 @@ describe('calendar view items', () => {
     expect(timeRangeText('2026-09-30T23:00', '2026-10-01T00:00')).toBe('23:00 – 00:00');
     expect(timeRangeText('2026-09-30T23:00', '2026-10-01T00:30')).toBe('mié 23:00 – jue 00:30');
     expect(timeRangeText('2026-09-30T09:00', null)).toBe('09:00');
+  });
+
+  it('describes how long an item lasts', () => {
+    expect(durationText('2026-09-30T09:00', '2026-09-30T14:00')).toBe('5 h');
+    expect(durationText('2026-09-30T09:15', '2026-09-30T10:00')).toBe('45 min');
+    expect(durationText('2026-09-30T09:00', '2026-09-30T10:30')).toBe('1 h 30 min');
+    expect(durationText('2026-09-30T20:00', '2026-10-01T00:00')).toBe('4 h');
+    expect(durationText('2026-09-30T20:00', '2026-10-02T23:00')).toBe('2 d 3 h');
+    expect(durationText('2026-09-30T09:00', '2026-10-01T09:00')).toBe('1 d');
+    expect(durationText('2026-09-30T09:00', null)).toBe('');
   });
 
   it('resizes an event from its edges, snapping and keeping at least one step', () => {

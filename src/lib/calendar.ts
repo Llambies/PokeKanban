@@ -370,6 +370,18 @@ export function timeRangeText(start: string, end: string | null): string {
   return `${weekday(start)} ${from} – ${weekday(end)} ${end.slice(11, 16)}`;
 }
 
+/** How long an item lasts: "45 min", "5 h", "1 h 30 min", "2 d 3 h". Empty without an end. */
+export function durationText(start: string, end: string | null): string {
+  if (!end) return '';
+  const total = toTotal(end) - toTotal(start);
+  if (total <= 0) return '';
+  const days = Math.floor(total / 1440);
+  const hours = Math.floor((total % 1440) / 60);
+  const minutes = total % 60;
+  if (days) return [`${days} d`, hours && `${hours} h`].filter(Boolean).join(' ');
+  return [hours && `${hours} h`, minutes && `${minutes} min`].filter(Boolean).join(' ');
+}
+
 /* -------------------------------------------------------- week view zoom */
 
 /** Usual height of an hour in the week view, in px. */

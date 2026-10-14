@@ -735,7 +735,24 @@
   border-bottom-right-radius: 0;
 }
 
+/* Title on the left, duration on the right. */
+.cal-block__head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cal-block__duration {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
 .cal-block__title {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 3px;
@@ -1372,7 +1389,8 @@ html.is-cal-resizing * {
     font-size: 10px;
   }
 
-  .cal-block__time {
+  .cal-block__time,
+  .cal-block__duration {
     display: none;
   }
 
