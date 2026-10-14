@@ -24,8 +24,8 @@ Los datos son tuyos: se guardan en un archivo JSON en tu máquina, en tu cuenta 
   **cualquiera de los 1025 Pokémon y sus ~490 formas** (regionales de Alola, Galar, Hisui y Paldea, megaevoluciones,
   Gigamax, Unown, Vivillon, Alcremie…), con iconos de [PokeAPI](https://pokeapi.co), búsqueda por nombre o número,
   atajos por región o tipo de forma, uno al azar y botón ✨ para elegir su **versión shiny**.
-  Los mismos iconos sirven para los eventos del calendario, el widget de Android y sus notificaciones (el widget solo
-  dibuja los destacados; con los de react-icons muestra el icono del tipo de evento).
+  Los mismos iconos sirven para los eventos del calendario, el widget de Android y sus notificaciones (los de
+  react-icons, el widget los dibuja en un solo color).
 - **Cabeceras de lista de color**, con opción de teñir toda la columna.
 - **Portadas** de tarjeta (franja o tarjeta completa, color o imagen por URL).
 - **Separadores**: tarjetas que se muestran como cabeceras de color dentro de una lista.
@@ -175,7 +175,8 @@ El widget usa los mismos iconos que la app: `npm run android:icons` convierte lo
 el selector (`src/lib/icons.tsx`) en vectores de Android (`android/app/src/main/res/drawable/lucide_*.xml`).
 Vuelve a ejecutarlo si añades iconos al selector. Los de react-icons no se guardan en el repositorio: al compilar,
 un plugin de `vite.config.ts` los lee del paquete y los parte en bloques de 128 que la app descarga cuando los
-necesita (`src/lib/reactIcons.ts`). La lista de Pokémon y formas (nombres en español y recorte de cada
+necesita (`src/lib/reactIcons.ts`). Como el widget no sabe dibujar SVG, la app le manda en PNG los que usa la
+agenda (`src/lib/native.ts`) y él los guarda (`ReactIcons.java`); si aún no tiene uno, pone el del tipo de evento. La lista de Pokémon y formas (nombres en español y recorte de cada
 icono, `shared/pokemon-data.js`) se genera con `npm run pokemon:data` a partir de los datos de PokeAPI; ejecútalo
 cuando salgan Pokémon nuevos.
 

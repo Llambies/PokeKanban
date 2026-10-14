@@ -445,7 +445,10 @@ export function agenda(data, fromKey, days, opts = {}) {
         colorKey,
         color: colorHex(colorKey),
         // Effective icon: the event's own or its kind's (the widget draws the app's Lucide icons).
-        icon: event.icon ?? DEFAULT_KIND_ICONS[event.kind] ?? null,
+        // react-icons ones go apart: older versions of the widget don't know them and would print
+        // the value, so they get the kind's icon there.
+        icon: (event.icon?.startsWith('ri:') ? null : event.icon) ?? DEFAULT_KIND_ICONS[event.kind] ?? null,
+        reactIcon: event.icon?.startsWith('ri:') ? event.icon : null,
         emoji: iconEmoji(event.icon, event.kind),
         detail:
           event.kind === 'birthday' ? (years ? `Cumple ${years} años` : 'Cumpleaños')
@@ -480,6 +483,7 @@ export function agenda(data, fromKey, days, opts = {}) {
         colorKey,
         color: colorHex(colorKey),
         icon: DEFAULT_KIND_ICONS.card,
+        reactIcon: null,
         emoji: '📋',
         detail: data.boards[card.boardId].title,
         checkable: true,

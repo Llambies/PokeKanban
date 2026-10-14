@@ -56,6 +56,8 @@ export interface AgendaItem {
   colorKey: string | null;
   color: string | null;
   icon: string | null;
+  /** The event's react-icons icon ("ri:tb:TbFlame"), kept apart from `icon` for older widgets. */
+  reactIcon: string | null;
   emoji: string;
   detail: string;
   checkable: boolean;

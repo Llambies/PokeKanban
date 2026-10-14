@@ -15,6 +15,7 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
+import org.json.JSONObject;
 
 /** Bridge used by the web app (src/lib/native.ts) when it runs inside the Android app. */
 @CapacitorPlugin(
@@ -39,6 +40,14 @@ public class PokeKanbanPlugin extends Plugin {
         }
         String agenda = call.getString("agenda");
         String reminders = call.getString("reminders");
+        String icons = call.getString("icons");
+        if (icons != null) {
+            try {
+                ReactIcons.save(ctx, new JSONObject(icons));
+            } catch (Exception ignored) {
+                // The widget shows the kind's icon instead.
+            }
+        }
         if (agenda != null) Store.saveAgenda(ctx, agenda);
         if (reminders != null) Store.saveReminders(ctx, reminders);
         Store.setNeedsLogin(ctx, false);

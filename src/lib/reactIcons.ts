@@ -97,7 +97,7 @@ type ChunkTable = Record<string, { firsts: string[]; loads: (() => Promise<{ def
 let table: Promise<ChunkTable> | null = null;
 const trees = new Map<string, IconTree>();
 const components = new Map<string, IconType>();
-const requested = new Set<string>();
+const chunkLoads = new Map<string, Promise<void>>();
 const listeners = new Set<() => void>();
 let version = 0;
 
@@ -115,29 +115,60 @@ function loadTable(): Promise<ChunkTable> {
   return table;
 }
 
+/** Downloads (once) the chunk holding an icon. */
+function loadChunk(t: ChunkTable, family: string, name: string): Promise<void> {
+  const fam = t[family];
+  if (!fam) return Promise.resolve();
+  const i = chunkIndex(fam.firsts, name);
+  const key = `${family}/${i}`;
+  let load = chunkLoads.get(key);
+  if (!load) {
+    load = fam.loads[i]().then(
+      (chunk) => {
+        for (const [icon, tree] of Object.entries(chunk.default)) trees.set(`${family}:${icon}`, tree);
+        version++;
+        listeners.forEach((l) => l());
+      },
+      () => {
+        chunkLoads.delete(key); // Offline: try again next time.
+      },
+    );
+    chunkLoads.set(key, load);
+  }
+  return load;
+}
+
 /** Starts downloading the chunks of these icons (once each); `useIconGetter` re-renders as they arrive. */
 export function requestIcons(icons: { family: string; name: string }[]): void {
   if (icons.length === 0) return;
   loadTable()
-    .then((t) => {
-      for (const { family, name } of icons) {
-        const fam = t[family];
-        if (!fam) continue;
-        const i = chunkIndex(fam.firsts, name);
-        const key = `${family}/${i}`;
-        if (requested.has(key)) continue;
-        requested.add(key);
-        fam.loads[i]().then(
-          (chunk) => {
-            for (const [icon, tree] of Object.entries(chunk.default)) trees.set(`${family}:${icon}`, tree);
-            version++;
-            listeners.forEach((l) => l());
-          },
-          () => requested.delete(key),
-        );
-      }
-    })
+    .then((t) => icons.forEach(({ family, name }) => void loadChunk(t, family, name)))
     .catch(() => undefined);
+}
+
+/** The SVG tree of a react-icons value, downloading its chunk if needed (null if unknown or offline). */
+export async function reactIconTree(value: string): Promise<IconTree | null> {
+  const parsed = parseReactIcon(value);
+  if (!parsed) return null;
+  const key = `${parsed.family}:${parsed.name}`;
+  if (!trees.has(key)) await loadChunk(await loadTable(), parsed.family, parsed.name).catch(() => undefined);
+  return trees.get(key) ?? null;
+}
+
+const escapeXml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/**
+ * Standalone SVG of an icon tree, drawn like react-icons draws it (`currentColor` stroke and fill,
+ * no stroke unless the icon sets one) in the given color. Used to make images for the Android widget.
+ */
+export function iconTreeSvg(tree: IconTree, size: number, color: string): string {
+  const attrs = (attr: Record<string, string>) =>
+    Object.entries(attr)
+      .map(([k, v]) => ` ${k === 'viewBox' ? k : k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())}="${escapeXml(String(v))}"`)
+      .join('');
+  const node = (n: IconTree): string => `<${n.tag}${attrs(n.attr)}>${(n.child ?? []).map(node).join('')}</${n.tag}>`;
+  const root = { stroke: 'currentColor', fill: 'currentColor', strokeWidth: '0', ...tree.attr, width: String(size), height: String(size) };
+  return `<svg xmlns="http://www.w3.org/2000/svg" color="${escapeXml(color)}"${attrs(root)}>${(tree.child ?? []).map(node).join('')}</svg>`;
 }
 
 function subscribe(listener: () => void) {

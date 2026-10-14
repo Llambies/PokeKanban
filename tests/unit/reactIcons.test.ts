@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import index from 'virtual:react-icons-index';
 import chunks from 'virtual:react-icons-chunks';
 import {
-  chunkIndex, countIcons, getIconFamily, ICON_FAMILIES, iconLabel, parseReactIcon, reactIconValue, searchIconIndex,
+  chunkIndex, countIcons, getIconFamily, iconTreeSvg, ICON_FAMILIES, iconLabel, parseReactIcon, reactIconValue, searchIconIndex,
 } from '../../src/lib/reactIcons';
 import { iconEmoji } from '../../shared/calendar.js';
 
@@ -28,6 +28,19 @@ describe('react-icons', () => {
     expect(chunk.TbFlame).toMatchObject({ tag: 'svg', child: expect.any(Array) });
     expect(chunkIndex(firsts, firsts[0])).toBe(0);
     expect(chunkIndex(firsts, 'Tbzzz')).toBe(firsts.length - 1);
+  });
+
+  it('turns an icon into a standalone SVG drawn like react-icons does', async () => {
+    const lucide = chunks.lu;
+    const tree = (await lucide[chunkIndex(lucide.map((c) => c[0]), 'LuFlame')][1]()).default.LuFlame;
+    const svg = iconTreeSvg(tree, 72, '#ffffff');
+    expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" color="#ffffff" /);
+    // Lucide sets its own stroke: it overrides react-icons' defaults, in SVG attribute names.
+    expect(svg).toContain('stroke-width="2"');
+    expect(svg).not.toContain('strokeWidth');
+    expect(svg).toContain('viewBox="0 0 24 24"');
+    expect(svg).toContain('width="72" height="72"');
+    expect(svg).toMatch(/<path d="[^"]+"><\/path>/);
   });
 
   it('stores icons as "ri:<family>:<Name>"', () => {

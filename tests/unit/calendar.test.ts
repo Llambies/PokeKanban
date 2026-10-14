@@ -128,6 +128,13 @@ describe('agenda', () => {
     // The widget draws the app's icons: the item's own or its kind's.
     expect(items.map((i) => i.icon)).toEqual(['lucide:Flag', 'lucide:Calendar', 'lucide:Calendar']);
   });
+
+  it('keeps react-icons apart so older widgets show the kind icon instead of the value', () => {
+    const party = ev('2026-09-29T20:00', null, { title: 'Fiesta', icon: 'ri:tb:TbFlame' });
+    const [item] = agenda(dataWith([party]), '2026-09-28', 7, { now: Date.UTC(2026, 8, 28, 10) });
+    expect(item.icon).toBe('lucide:Calendar');
+    expect(item.reactIcon).toBe('ri:tb:TbFlame');
+  });
 });
 
 describe('calendar view items', () => {

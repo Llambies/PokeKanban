@@ -88,8 +88,16 @@ public class AgendaWidgetService extends RemoteViewsService {
             return views;
         }
 
-        /** Same icon as in the app: its Lucide icon, or the emoji picked for the event. */
+        /** Same icon as in the app: its Lucide or react-icons icon, its Pokémon, or the emoji picked for the event. */
         private void showIcon(RemoteViews views, JSONObject item) {
+            Bitmap reactIcon = ReactIcons.bitmap(ctx, item.optString("reactIcon", ""));
+            if (reactIcon != null) {
+                views.setImageViewBitmap(R.id.item_icon, reactIcon);
+                views.setInt(R.id.item_icon, "setColorFilter", ctx.getColor(R.color.widget_muted));
+                views.setViewVisibility(R.id.item_icon, View.VISIBLE);
+                views.setViewVisibility(R.id.item_emoji, View.GONE);
+                return;
+            }
             String icon = item.optString("icon", "");
             if (icon.equals("null")) icon = "";
             String poke = PokeSprites.keyOf(icon);
