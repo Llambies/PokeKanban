@@ -62,6 +62,9 @@ public class AgendaWidgetService extends RemoteViewsService {
             views.setTextViewText(R.id.item_time, time.isEmpty() ? "Todo el día" : time);
             views.setTextColor(R.id.item_time, overdue ? 0xFFE5484D : ctx.getColor(R.color.widget_muted));
             views.setTextViewText(R.id.item_title, item.optString("title", ""));
+            String duration = Agenda.duration(item);
+            views.setTextViewText(R.id.item_duration, duration);
+            views.setViewVisibility(R.id.item_duration, duration.isEmpty() ? View.GONE : View.VISIBLE);
             showIcon(views, item);
 
             String detail = item.optString("detail", "");

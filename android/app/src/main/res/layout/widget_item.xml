@@ -64,6 +64,16 @@
                 android:maxLines="1"
                 android:textColor="@color/widget_text"
                 android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/item_duration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:maxLines="1"
+                android:textColor="@color/widget_muted"
+                android:textSize="12sp"
+                android:visibility="gone" />
         </LinearLayout>
 
         <TextView

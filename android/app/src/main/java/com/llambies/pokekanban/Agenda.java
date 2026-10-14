@@ -48,6 +48,28 @@ final class Agenda {
         return text.isEmpty() ? text : text.substring(0, 1).toUpperCase(Locale.ROOT) + text.substring(1);
     }
 
+    /** How long a timed item lasts, as in the app: "45 min", "5 h", "1 h 30 min", "2 d 3 h". Empty without an end. */
+    static String duration(JSONObject item) {
+        String date = item.optString("date", "");
+        String time = item.optString("time", "");
+        String endDate = item.optString("endDate", "");
+        String endTime = item.optString("endTime", "");
+        if (date.length() < 10 || time.length() < 5 || endDate.length() < 10 || endTime.length() < 5) return "";
+        long days = Math.round((parse(endDate).getTimeInMillis() - parse(date).getTimeInMillis()) / 86400000.0);
+        long total = days * 1440 + minutes(endTime) - minutes(time);
+        if (total <= 0) return "";
+        long d = total / 1440;
+        long h = (total % 1440) / 60;
+        long m = total % 60;
+        if (d > 0) return h > 0 ? d + " d " + h + " h" : d + " d";
+        if (h > 0) return m > 0 ? h + " h " + m + " min" : h + " h";
+        return m + " min";
+    }
+
+    private static int minutes(String time) {
+        return Integer.parseInt(time.substring(0, 2)) * 60 + Integer.parseInt(time.substring(3, 5));
+    }
+
     /** "lunes, 28 de septiembre". */
     static String longDate(String key) {
         Calendar c = parse(key);

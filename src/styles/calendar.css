@@ -354,7 +354,10 @@
 .agenda-row {
   --item-bg: var(--border-strong);
   display: grid;
-  grid-template-columns: 64px 4px 22px minmax(0, 1fr) auto;
+  grid-template-columns: 64px 4px 22px minmax(0, 1fr);
+  /* Duration and check button get their own columns only when the row has them. */
+  grid-auto-columns: auto;
+  grid-auto-flow: column;
   align-items: center;
   gap: 8px;
   min-height: 44px;
@@ -426,6 +429,13 @@
 
 .agenda-row.is-done .agenda-row__title {
   text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.agenda-row__duration {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   color: var(--text-muted);
 }
 
@@ -1412,7 +1422,7 @@ html.is-cal-resizing * {
   }
 
   .agenda-row {
-    grid-template-columns: 52px 4px 20px minmax(0, 1fr) auto;
+    grid-template-columns: 52px 4px 20px minmax(0, 1fr);
     gap: 6px;
   }
 }

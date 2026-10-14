@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { Check, MapPin, Repeat } from 'lucide-react';
 import { getColor } from '../../lib/colors';
-import { itemTitle, type CalItem } from '../../lib/calendar';
+import { durationText, itemTitle, type CalItem } from '../../lib/calendar';
 import { recurrenceSummary } from '../../lib/calendar';
 import { useStore } from '../../store/store';
 import { IconGlyph } from '../common/LabelChip';
@@ -137,6 +137,7 @@ export function AgendaRow({ item, showDate }: { item: CalItem; showDate?: string
           </span>
         )}
       </span>
+      {!item.allDay && item.end && <span className="agenda-row__duration">{durationText(item.start, item.end)}</span>}
       {item.checkable && (
         <button
           type="button"
