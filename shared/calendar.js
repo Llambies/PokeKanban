@@ -307,9 +307,9 @@ const LUCIDE_EMOJI = {
 
 const KIND_EMOJI = { event: '📅', birthday: '🎂', anniversary: '💞', deadline: '🚩', reminder: '🔔', card: '📋' };
 
-/** An emoji for an icon value ("lucide:Name" or an emoji), falling back to the kind's emoji. */
+/** An emoji for an icon value ("lucide:Name", "ri:…", "poke:…" or an emoji), falling back to the kind's emoji. */
 export function iconEmoji(icon, kind) {
-  if (icon && !icon.startsWith('lucide:') && !icon.startsWith('poke:')) return icon;
+  if (icon && !icon.startsWith('lucide:') && !icon.startsWith('poke:') && !icon.startsWith('ri:')) return icon;
   if (icon && LUCIDE_EMOJI[icon.slice(7)]) return LUCIDE_EMOJI[icon.slice(7)];
   return KIND_EMOJI[kind] ?? '📅';
 }

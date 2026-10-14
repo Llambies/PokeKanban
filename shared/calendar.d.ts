@@ -34,7 +34,7 @@ export interface ReminderNotice {
   title: string;
   body: string;
   url: string;
-  /** The event's icon value ("lucide:…", "poke:25", an emoji) or null. */
+  /** The event's icon value ("lucide:…", "ri:tb:TbFlame", "poke:25", an emoji) or null. */
   icon?: string | null;
 }
 

@@ -190,6 +190,50 @@
   max-height: 228px;
 }
 
+.icon-picker__family {
+  flex: 0 1 auto;
+  max-width: 45%;
+}
+
+.icon-grid--all {
+  max-height: 248px;
+}
+
+/* Separator between icon families; it stays at the top while scrolling through its family. */
+.icon-grid__family {
+  position: sticky;
+  top: -2px;
+  z-index: 1;
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 4px 2px 3px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.icon-grid__family:first-child {
+  margin-top: 0;
+}
+
+.icon-grid__family-meta {
+  color: var(--text-subtle);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+/* Box of the right size while an icon's family downloads. */
+.react-icon-placeholder {
+  display: inline-block;
+  flex-shrink: 0;
+}
+
 .icon-picker__shortcuts {
   gap: 4px;
   margin: 0;

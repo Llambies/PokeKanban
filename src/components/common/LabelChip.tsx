@@ -3,11 +3,20 @@ import type { Label } from '../../types';
 import { getColor } from '../../lib/colors';
 import { getLucideIcon } from '../../lib/icons';
 import { pokemonKey, spriteStyle } from '../../lib/pokemon';
+import { parseReactIcon, useReactIcon } from '../../lib/reactIcons';
+
+/** An icon from react-icons: its family is downloaded the first time, with an empty box meanwhile. */
+function ReactIconGlyph({ icon, size }: { icon: string; size: number }) {
+  const Icon = useReactIcon(icon);
+  if (Icon) return <Icon size={size} aria-hidden />;
+  return <span className="react-icon-placeholder" style={{ width: size, height: size }} aria-hidden />;
+}
 
 export function IconGlyph({ icon, size = 14 }: { icon: string | null | undefined; size?: number }) {
   if (!icon) return null;
   const Lucide = getLucideIcon(icon);
   if (Lucide) return <Lucide size={size} strokeWidth={2.25} aria-hidden />;
+  if (parseReactIcon(icon)) return <ReactIconGlyph icon={icon} size={size} />;
   const poke = pokemonKey(icon);
   // Sprites have no stroke weight: draw them a bit bigger than line icons.
   if (poke) return <span className="poke-glyph" style={spriteStyle(poke, Math.round(size * 1.3))} aria-hidden />;
