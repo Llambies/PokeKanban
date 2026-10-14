@@ -46,6 +46,9 @@ export function itemStyle(item: Pick<CalItem, 'colorKey'>): CSSProperties | unde
   return { '--item-bg': color.bg, '--item-fg': color.fg, '--item-icon': icon } as CSSProperties;
 }
 
+/** Line icons, which take the item's color (emoji and Pokémon have their own). */
+const tintable = (icon: string | null) => !!icon && (icon.startsWith('lucide:') || icon.startsWith('ri:'));
+
 /** Compact chip for month cells and all-day rows. */
 export function ItemChip({ item, showTime = true }: { item: CalItem; showTime?: boolean }) {
   // Only all-day items are drawn as bars; timed ones (even over several days) look like the rest.
@@ -81,7 +84,8 @@ export function ItemChip({ item, showTime = true }: { item: CalItem; showTime?: 
       onContextMenu={(e) => itemMenu(e, item)}
       title={`${item.time ? `${item.time} ` : ''}${itemTitle(item)}`}
     >
-      {!filled && <span className="cal-chip__dot" />}
+      {/* The color goes on the icon; emoji and Pokémon keep theirs, so they still get the dot. */}
+      {!filled && !tintable(item.icon) && <span className="cal-chip__dot" />}
       {item.icon && <IconGlyph icon={item.icon} size={12} />}
       {showTime && item.time && item.first && <span className="cal-chip__time">{item.time}</span>}
       <span className="cal-chip__title">{itemTitle(item)}</span>
