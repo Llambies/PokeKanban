@@ -33,6 +33,9 @@ export const revokeKey = (id: string) => request<{ ok: true }>(`api/keys/${encod
 /** URL of the MCP server of this installation. */
 export const mcpUrl = () => new URL('api/mcp', document.baseURI).href;
 
+/** The MCP URL with the key in it, for Claude's custom connectors (they can't send an Authorization header). */
+export const connectorUrl = (key: string) => `${mcpUrl()}/${key}`;
+
 export function claudeCommand(key: string): string {
   return `claude mcp add --transport http pokekanban ${mcpUrl()} --header "Authorization: Bearer ${key}"`;
 }

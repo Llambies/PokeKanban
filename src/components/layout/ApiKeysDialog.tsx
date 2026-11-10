@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Copy, KeyRound, Plus, Trash2, X } from 'lucide-react';
 import { confirmDialog, toast, useUI } from '../../store/ui';
-import { claudeCommand, codexCommands, createKey, listKeys, mcpUrl, revokeKey, type ApiKey, type CreatedKey, type KeyScope } from '../../lib/apiKeys';
+import { claudeCommand, codexCommands, connectorUrl, createKey, listKeys, mcpUrl, revokeKey, type ApiKey, type CreatedKey, type KeyScope } from '../../lib/apiKeys';
 import { Modal } from '../common/Modal';
 
 const SCOPES: Record<KeyScope, string> = { write: 'Lectura y escritura', read: 'Solo lectura' };
@@ -95,6 +95,7 @@ function Body() {
             </button>
           </div>
           <Snippet title="Claude Code" text={claudeCommand(created.key)} />
+          <Snippet title="Claude: conector personalizado (web, escritorio y móvil)" text={connectorUrl(created.key)} />
           <Snippet title="Codex" text={codexCommands(created.key)} />
           <button type="button" className="btn btn--sm btn--subtle" onClick={() => setCreated(null)}>
             Ya la he guardado

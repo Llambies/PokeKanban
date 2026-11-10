@@ -213,6 +213,10 @@ export POKEKANBAN_API_KEY=pk_…
 codex mcp add pokekanban --url https://kanban.llambies.com/api/mcp --bearer-token-env-var POKEKANBAN_API_KEY
 ```
 
+En Claude (web, escritorio y móvil) se añade como *conector personalizado*. Ese diálogo solo pide una URL, así que la clave
+va en ella: `https://kanban.llambies.com/api/mcp/pk_…`. La URL equivale a la clave: no la compartas y, si te basta, usa
+una clave de solo lectura.
+
 Las mismas herramientas están disponibles como JSON simple: `GET /api/agent` las lista y
 `POST /api/agent/<herramienta>` con los argumentos en el cuerpo ejecuta una (cabecera `Authorization: Bearer pk_…`).
 Los cambios se guardan como cualquier otro (con copias horarias) y la web los recoge sola. Las herramientas están en `server/agent.mjs`.

@@ -266,4 +266,36 @@ describe('MCP endpoint', () => {
     expect((await call('/api/mcp', { method: 'POST', json: {} })).status).toBe(401);
     expect((await call('/api/mcp', { headers: { authorization: `Bearer ${key}` } })).status).toBe(405);
   });
+
+  it('takes the key in the URL, for Claude custom connectors', async () => {
+    const { call, key } = await setup();
+    const init = { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } };
+    const ok = await call(`/api/mcp/${key}`, { method: 'POST', json: init });
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).result.serverInfo.name).toBe('pokekanban');
+
+    const list = await call(`/api/mcp/${key}`, { method: 'POST', json: { jsonrpc: '2.0', id: 2, method: 'tools/list' } });
+    expect((await list.json()).result.tools.length).toBeGreaterThan(0);
+
+    // A wrong key in the URL wins over a valid header, and doesn't ask for an OAuth login.
+    const bad = await call('/api/mcp/pk_nope_nope_nope_nope_nope', { method: 'POST', json: init, headers: { authorization: `Bearer ${key}` } });
+    expect(bad.status).toBe(401);
+    expect(bad.headers.get('www-authenticate')).toBeNull();
+    expect((await call('/api/mcp/nope', { method: 'POST', json: init })).status).toBe(401);
+    expect((await call(`/api/mcp/${key}`)).status).toBe(405);
+    // The JSON API keeps using the header only.
+    expect((await call(`/api/agent/${key}`, { method: 'POST', json: {} })).status).toBe(401);
+  });
+
+  it('keeps read-only keys read-only through the URL', async () => {
+    const { call } = await setup();
+    const ro = await (await call('/api/keys', { method: 'POST', json: { name: 'ro', scope: 'read' } })).json();
+    const res = await call(`/api/mcp/${ro.key}`, {
+      method: 'POST',
+      json: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'create_board', arguments: { name: 'x' } } },
+    });
+    const body = await res.json();
+    expect(body.result.isError).toBe(true);
+    expect(body.result.content[0].text).toContain('solo lectura');
+  });
 });

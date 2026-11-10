@@ -20,6 +20,7 @@
 //   POST /api/keys             <- { name, scope: 'read' | 'write' } -> { ...key, key: 'pk_…' } (shown only once)
 //   DELETE /api/keys/<id>      -> revokes the key
 //   POST /api/mcp              MCP server (JSON-RPC over HTTP) for Claude Code, Codex…   Authorization: Bearer pk_…
+//   POST /api/mcp/pk_…         the same, with the key in the URL (Claude custom connectors can't send headers)
 //   GET  /api/agent            -> tools list      POST /api/agent/<tool> <- arguments  -> result   (same tools, plain JSON)
 //
 // When a password is configured every route except session/login/logout needs a valid session
@@ -341,11 +342,11 @@ export function createHandler({ storage, password = '', requirePassword = false,
     return json(405, { error: 'Método no permitido' });
   }
 
-  /** The API key of a `Bearer pk_…` request, or null. */
-  async function authenticateKey(request) {
-    const match = /^Bearer\s+(pk_[\w-]{20,})\s*$/i.exec(request.headers.get('authorization') ?? '');
-    if (!match) return null;
-    const hash = await sha256Hex(match[1]);
+  /** The API key of a `Bearer pk_…` request (or `urlKey`, the one in the URL when given), or null. */
+  async function authenticateKey(request, urlKey = null) {
+    const secret = urlKey ?? /^Bearer\s+(\S+)\s*$/i.exec(request.headers.get('authorization') ?? '')?.[1];
+    if (!secret || !/^pk_[\w-]{20,}$/.test(secret)) return null;
+    const hash = await sha256Hex(secret);
     const key = (await loadKeys()).find((k) => k.hash === hash);
     if (key && Date.now() - (key.lastUsedAt ?? 0) > KEY_TOUCH_MS) {
       void withKeys(() => void (key.lastUsedAt = Date.now())).catch(() => {});
@@ -673,9 +674,14 @@ export function createHandler({ storage, password = '', requirePassword = false,
       if (resource === 'mcp' || resource === 'agent') {
         // Programs, not browsers: an API key replaces the session cookie and the same-origin check.
         if (!configured) return json(503, { error: 'no-password', message: 'Falta configurar la contraseña (secreto POKEKANBAN_PASSWORD).' });
-        const key = await authenticateKey(request);
-        if (!key) return json(401, { error: 'auth', message: 'Falta una clave de API válida (Authorization: Bearer pk_…)' }, { 'www-authenticate': 'Bearer' });
-        return await handleAgent(request, resource, param, key);
+        // MCP also takes the key as the last path segment (/api/mcp/pk_…): Claude's custom connectors only take a URL.
+        const urlKey = resource === 'mcp' && param ? param : null;
+        const key = await authenticateKey(request, urlKey);
+        if (!key) {
+          // No `www-authenticate` for a key in the URL: it would send the client looking for an OAuth login.
+          return json(401, { error: 'auth', message: 'Falta una clave de API válida (Authorization: Bearer pk_…)' }, urlKey ? {} : { 'www-authenticate': 'Bearer' });
+        }
+        return await handleAgent(request, resource, urlKey ? null : param, key);
       }
       if (!isRead && !sameOrigin(request, url)) return json(403, { error: 'Origen no permitido' });
 
