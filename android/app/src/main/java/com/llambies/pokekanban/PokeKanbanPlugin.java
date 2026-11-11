@@ -54,11 +54,7 @@ public class PokeKanbanPlugin extends Plugin {
         Reminders.schedule(ctx);
         AgendaWidget.refreshAll(ctx);
         call.resolve();
-        // Pokémon icons: download them now so the widget and notifications have them offline.
-        new Thread(() -> {
-            PokeSprites.prefetch(ctx, Store.agenda(ctx).optJSONArray("items"), Store.reminders(ctx));
-            AgendaWidget.refreshAll(ctx);
-        }).start();
+        new Thread(() -> SyncWorker.sprites(ctx)).start();
     }
 
     @PluginMethod
@@ -67,6 +63,8 @@ public class PokeKanbanPlugin extends Plugin {
         result.put("notifications", Notifications.allowed(getContext()));
         result.put("exactAlarms", Reminders.canExact(getContext()));
         result.put("widgets", AgendaWidget.count(getContext()));
+        result.put("push", Store.pushEndpoint(getContext()) != null);
+        result.put("pushAt", Store.pushAt(getContext()));
         call.resolve(result);
     }
 
@@ -101,6 +99,28 @@ public class PokeKanbanPlugin extends Plugin {
             "#/calendar"
         );
         call.resolve();
+    }
+
+    /** Instant sync: the push subscription of this app for the server (its VAPID key), see Push. */
+    @PluginMethod
+    public void registerPush(PluginCall call) {
+        Context ctx = getContext();
+        Push.register(ctx, call.getString("vapidKey"), (endpoint, error) -> {
+            if (endpoint == null) {
+                call.reject(error);
+                return;
+            }
+            try {
+                String[] keys = Push.keys(ctx);
+                JSObject result = new JSObject();
+                result.put("endpoint", endpoint);
+                result.put("p256dh", keys[0]);
+                result.put("auth", keys[1]);
+                call.resolve(result);
+            } catch (Exception e) {
+                call.reject("No se pudieron crear las claves de la suscripción");
+            }
+        });
     }
 
     @PluginMethod

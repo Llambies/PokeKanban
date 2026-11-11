@@ -127,6 +127,13 @@ async function probeServer(): Promise<Probe> {
   };
 }
 
+let deviceEndpoint: string | null = null;
+
+/** Android app: its push endpoint, so the server doesn't tell it to sync what it has just saved. */
+export function setDeviceEndpoint(endpoint: string | null): void {
+  deviceEndpoint = endpoint;
+}
+
 function requireLogin(): void {
   usePersist.setState({ needsLogin: true, authEnabled: true });
 }
@@ -147,7 +154,7 @@ async function flushServer(force = false): Promise<void> {
     const body = JSON.stringify({ baseRev: rev, data, force });
     const res = await fetch(API, {
       method: 'PUT',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...(deviceEndpoint ? { 'x-pokekanban-device': deviceEndpoint } : {}) },
       body,
       // Small payloads survive the tab being closed mid-request.
       keepalive: byteLength(body) < KEEPALIVE_LIMIT,

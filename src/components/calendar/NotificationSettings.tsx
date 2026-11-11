@@ -1,13 +1,21 @@
 import { useEffect, useState } from 'react';
-import { AlarmClock, BellOff, BellRing, Send, Smartphone } from 'lucide-react';
+import { AlarmClock, BellOff, BellRing, RefreshCw, Send, Smartphone } from 'lucide-react';
 import { disablePush, enablePush, needsHomeScreen, refreshPush, testPush, usePush } from '../../lib/push';
-import { isNativeApp, Native, type NativeStatus } from '../../lib/native';
+import { isNativeApp, Native, testInstantSync, type NativeStatus } from '../../lib/native';
 import { toast } from '../../store/ui';
 import { downloadAndroidApp, isAndroidBrowser } from '../../lib/download';
 
 /** Inside the Android app: native notifications with exact alarms. */
 function NativeNotificationSettings() {
   const [status, setStatus] = useState<NativeStatus | null>(null);
+  const [testing, setTesting] = useState(false);
+  const testSync = async () => {
+    setTesting(true);
+    const problem = await testInstantSync().catch(() => 'No se pudo hacer la prueba');
+    setTesting(false);
+    toast(problem ?? 'Funciona: el aviso del servidor ha llegado', problem ? { duration: 10_000 } : {});
+    void Native.status().then(setStatus).catch(() => {});
+  };
   useEffect(() => {
     const refresh = () => void Native.status().then(setStatus).catch(() => {});
     refresh();
@@ -45,6 +53,24 @@ function NativeNotificationSettings() {
             <Send size={14} /> Enviar prueba
           </button>
         </div>
+      )}
+      {status.push === undefined ? (
+        <p className="small muted">
+          Lo que cambies desde otro dispositivo llega a este móvil cada media hora. Actualiza la app para que llegue al momento.
+        </p>
+      ) : (
+        <>
+          <p className="small muted">
+            {status.push
+              ? 'Lo que cambies desde otro dispositivo llega a este móvil al momento.'
+              : 'Lo que cambies desde otro dispositivo llega a este móvil cada media hora: la sincronización al instante (con los servicios de Google Play) no está activa.'}
+          </p>
+          <div className="notif-settings__actions">
+            <button type="button" className="btn btn--sm" disabled={testing} onClick={() => void testSync()}>
+              <RefreshCw size={14} /> {testing ? 'Esperando el aviso…' : status.push ? 'Probar sincronización' : 'Activar sincronización al instante'}
+            </button>
+          </div>
+        </>
       )}
       <p className="small muted">
         {status.widgets > 0

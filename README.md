@@ -154,7 +154,13 @@ La app para Android es la misma web dentro de una app (Capacitor, carpeta `andro
   tarjetas por días (los pendientes vencidos arriba). Tocar un elemento lo abre; `+` crea un evento.
 - **Avisos a la hora exacta** con alarmas del sistema, incluso sin conexión y tras reiniciar el móvil.
   En *Calendario → Ajustes* se dan los permisos y se envía una notificación de prueba.
-- Se sincroniza cada 30 minutos para recoger lo que cambies desde otros dispositivos.
+- **Sincronización al instante**: lo que cambies desde otro dispositivo (o un agente por MCP) llega al móvil
+  en segundos aunque la app esté cerrada, así que un aviso creado dos minutos antes suena a su hora. El servidor
+  manda a la app un push «sincroniza ahora» cuando cambia su copia del calendario y a la hora de cada aviso
+  (por si se perdió el cambio); la app descarga la agenda y programa o muestra los avisos. Usa los servicios de
+  Google Play con la misma clave Web Push (VAPID) que el servidor ya tiene para los navegadores: no hace falta
+  ningún proyecto de Firebase ni configurar nada. En *Calendario → Ajustes* hay un botón para probarlo.
+  Sin servicios de Google Play (o si un push se pierde) la app sigue sincronizándose cada 30 minutos.
 
 **Instalarla**: abre en el móvil
 [github.com/Llambies/PokeKanban/releases/download/android/PokeKanban.apk](https://github.com/Llambies/PokeKanban/releases/download/android/PokeKanban.apk),

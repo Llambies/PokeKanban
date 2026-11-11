@@ -38,6 +38,13 @@ final class Reminders {
         return PendingIntent.getBroadcast(ctx, 0, intent, flags | PendingIntent.FLAG_IMMUTABLE);
     }
 
+    /** Shows a reminder, once (even if it was scheduled twice or also arrives late with a sync). */
+    static synchronized void deliver(Context ctx, String id, String title, String body, String url, String icon) {
+        if (id == null || Store.wasDelivered(ctx, id)) return;
+        Store.markDelivered(ctx, id);
+        Notifications.show(ctx, id, title, body, url, icon);
+    }
+
     static synchronized void schedule(Context ctx) {
         AlarmManager alarms = ctx.getSystemService(AlarmManager.class);
         for (String id : Store.scheduledIds(ctx)) {
@@ -57,13 +64,24 @@ final class Reminders {
             String id = reminder.optString("id", "");
             long at = reminder.optLong("at", 0);
             if (id.isEmpty() || at < now - MAX_LATE || at > now + HORIZON || Store.wasDelivered(ctx, id)) continue;
+            if (at <= now) {
+                // Already due (it just arrived from another device): show it now, a sleeping phone delays alarms.
+                deliver(
+                    ctx,
+                    id,
+                    reminder.optString("title", "PokeKanban"),
+                    reminder.optString("body", ""),
+                    reminder.optString("url", "#/calendar"),
+                    reminder.optString("icon", "")
+                );
+                continue;
+            }
             PendingIntent pending = alarmIntent(ctx, id, reminder, PendingIntent.FLAG_UPDATE_CURRENT);
-            long when = Math.max(at, now + 1000);
             try {
-                if (exact) alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending);
-                else alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending);
+                if (exact) alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending);
+                else alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending);
             } catch (SecurityException e) {
-                alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending);
+                alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending);
             }
             scheduled.add(id);
         }

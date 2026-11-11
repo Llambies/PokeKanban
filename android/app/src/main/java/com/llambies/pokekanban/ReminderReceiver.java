@@ -4,17 +4,14 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
-/** An alarm went off: show the reminder (once, even if it was scheduled twice). */
+/** An alarm went off: show the reminder. */
 public class ReminderReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context ctx, Intent intent) {
-        String id = intent.getStringExtra("id");
-        if (id == null || Store.wasDelivered(ctx, id)) return;
-        Store.markDelivered(ctx, id);
-        Notifications.show(
+        Reminders.deliver(
             ctx,
-            id,
+            intent.getStringExtra("id"),
             intent.getStringExtra("title"),
             intent.getStringExtra("body"),
             intent.getStringExtra("url"),

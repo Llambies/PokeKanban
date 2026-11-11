@@ -90,8 +90,10 @@ export async function vapidAuthorization(endpoint, vapid, subject, now = Date.no
 /**
  * Sends one notification. Returns { ok, status, gone } — `gone` means the subscription no longer
  * exists (unsubscribed / expired) and should be forgotten.
+ * `options.urgency`: "high" (default) wakes a sleeping phone, "normal" waits until it is awake.
+ * `options.topic`: a message still waiting for the device is replaced by a newer one with the same topic.
  */
-export async function sendPush(subscription, message, vapid, subject, fetchImpl = fetch) {
+export async function sendPush(subscription, message, vapid, subject, fetchImpl = fetch, options = {}) {
   const body = await encryptPayload(JSON.stringify(message), subscription.keys.p256dh, subscription.keys.auth);
   let response;
   try {
@@ -102,9 +104,12 @@ export async function sendPush(subscription, message, vapid, subject, fetchImpl 
         'content-encoding': 'aes128gcm',
         'content-type': 'application/octet-stream',
         ttl: String(24 * 3600),
-        urgency: 'high',
+        urgency: options.urgency ?? 'high',
+        ...(options.topic ? { topic: options.topic } : {}),
       },
       body,
+      // Saves wait for their pushes: a push service that hangs must not hold them up.
+      signal: AbortSignal.timeout(10_000),
     });
   } catch (err) {
     return { ok: false, status: 0, gone: false, error: String(err?.message ?? err) };

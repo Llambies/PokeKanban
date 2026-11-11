@@ -1,17 +1,29 @@
 import { Capacitor, registerPlugin, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { useStore } from '../store/store';
+import { setDeviceEndpoint, usePersist } from '../store/persistence';
 import { agenda, collectReminders } from '../../shared/calendar.js';
 import { todayKey } from './dates';
 import { iconTreeSvg, reactIconTree } from './reactIcons';
 
 /**
  * Bridge with the Android app (android/, Capacitor). Inside the app the web page sends the native
- * side its agenda (widget) and upcoming reminders (exact alarms) whenever the data changes.
+ * side its agenda (widget) and upcoming reminders (exact alarms) whenever the data changes. Changes
+ * made on other devices reach the closed app through a push from the server (see `linkPush`).
  */
 export interface NativeStatus {
   notifications: boolean;
   exactAlarms: boolean;
   widgets: number;
+  /** Instant sync is set up (missing in older versions of the app). */
+  push?: boolean;
+  /** When the last push from the server arrived (ms, 0 = never). */
+  pushAt?: number;
+}
+
+interface NativePushSubscription {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
 }
 
 interface PokeKanbanPlugin {
@@ -22,6 +34,8 @@ interface PokeKanbanPlugin {
   openExactAlarmSettings(): Promise<void>;
   test(): Promise<void>;
   sync(): Promise<void>;
+  /** Subscribes to pushes signed with the server's VAPID key (needs Google Play services). */
+  registerPush(options: { vapidKey: string }): Promise<NativePushSubscription>;
 }
 
 export const Native = registerPlugin<PokeKanbanPlugin>('PokeKanban');
@@ -58,9 +72,83 @@ function iconPng(value: string): Promise<string | null> {
   return png;
 }
 
+const ENDPOINT_KEY = 'pokekanban:push-endpoint';
+const PUSH_RETRY = 10 * 60_000;
+let pushLinked = false;
+let pushTriedAt = 0;
+let pushError = '';
+
+function storedEndpoint(): string | null {
+  try {
+    return localStorage.getItem(ENDPOINT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Instant sync: subscribes the app to the server's pushes, once per launch (the endpoint can change).
+ * The server then wakes the app up when the calendar changes on another device and when a reminder is due.
+ */
+async function linkPush(force = false): Promise<void> {
+  if (pushLinked || usePersist.getState().mode !== 'server' || (!force && Date.now() - pushTriedAt < PUSH_RETRY)) return;
+  pushTriedAt = Date.now();
+  try {
+    pushError = 'el servidor no responde';
+    const info = await fetch('api/push', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null));
+    if (typeof info?.publicKey !== 'string') return;
+    const sub = await Native.registerPush({ vapidKey: info.publicKey });
+    const previous = storedEndpoint();
+    const res = await fetch('api/push/subscribe', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        subscription: { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        device: 'Android · App',
+        native: true,
+        ...(previous && previous !== sub.endpoint ? { replaces: previous } : {}),
+      }),
+    });
+    if (!res.ok) return;
+    pushLinked = true;
+    pushError = '';
+    setDeviceEndpoint(sub.endpoint);
+    try {
+      localStorage.setItem(ENDPOINT_KEY, sub.endpoint);
+    } catch {
+      // Only used to replace the old endpoint when it changes.
+    }
+  } catch (err) {
+    // No Google Play services, an older app or no network: the app still syncs every half hour.
+    pushError = err instanceof Error ? err.message : String(err);
+  }
+}
+
+/**
+ * Asks the server for a push and waits for it to arrive: checks instant sync end to end.
+ * Returns null when it works, or what went wrong (to show the user).
+ */
+export async function testInstantSync(): Promise<string | null> {
+  await linkPush(true);
+  const endpoint = storedEndpoint();
+  if (!pushLinked || !endpoint) return `No se pudo activar: ${pushError || 'sin conexión con el servidor'}`;
+  const before = (await Native.status()).pushAt ?? 0;
+  const res = await fetch('api/push/test', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint }) });
+  if (!res.ok) {
+    const info = await res.json().catch(() => null);
+    return `Google no aceptó el aviso del servidor (${info?.status ? `HTTP ${info.status}` : `error ${res.status}`})`;
+  }
+  for (let i = 0; i < 15; i++) {
+    await new Promise((resolve) => window.setTimeout(resolve, 1000));
+    if (((await Native.status()).pushAt ?? 0) > before) return null;
+  }
+  return 'El aviso salió del servidor pero no ha llegado al móvil';
+}
+
 async function sendToNative(): Promise<void> {
   const { data, ready } = useStore.getState();
   if (!ready) return;
+  void linkPush();
   const now = Date.now();
   const today = todayKey();
   // The device's own time zone (null): alarms ring at local time.
@@ -80,6 +168,7 @@ async function sendToNative(): Promise<void> {
 
 export function startNativeBridge(): void {
   if (!isNativeApp()) return;
+  setDeviceEndpoint(storedEndpoint());
   let timer: number | undefined;
   const schedule = (delay: number) => {
     window.clearTimeout(timer);

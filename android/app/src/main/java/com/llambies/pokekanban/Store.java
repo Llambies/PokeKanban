@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -73,6 +74,44 @@ final class Store {
 
     static void setNeedsLogin(Context ctx, boolean value) {
         prefs(ctx).edit().putBoolean("needsLogin", value).apply();
+    }
+
+    /** Random id of this installation for Play services (see Push). */
+    static synchronized String pushChannel(Context ctx) {
+        String channel = prefs(ctx).getString("pushChannel", null);
+        if (channel == null) {
+            channel = UUID.randomUUID().toString();
+            prefs(ctx).edit().putString("pushChannel", channel).apply();
+        }
+        return channel;
+    }
+
+    /** { p256dh, auth } of the push subscription, or null before the first registration. */
+    static String[] pushKeys(Context ctx) {
+        String p256dh = prefs(ctx).getString("pushP256dh", null);
+        String auth = prefs(ctx).getString("pushAuth", null);
+        return p256dh == null || auth == null ? null : new String[] { p256dh, auth };
+    }
+
+    static void setPushKeys(Context ctx, String p256dh, String auth) {
+        prefs(ctx).edit().putString("pushP256dh", p256dh).putString("pushAuth", auth).apply();
+    }
+
+    static String pushEndpoint(Context ctx) {
+        return prefs(ctx).getString("pushEndpoint", null);
+    }
+
+    static void setPushEndpoint(Context ctx, String endpoint) {
+        prefs(ctx).edit().putString("pushEndpoint", endpoint).apply();
+    }
+
+    /** When the last push from the server arrived (0: never). */
+    static long pushAt(Context ctx) {
+        return prefs(ctx).getLong("pushAt", 0);
+    }
+
+    static void setPushAt(Context ctx, long at) {
+        prefs(ctx).edit().putLong("pushAt", at).apply();
     }
 
     static List<String> scheduledIds(Context ctx) {

@@ -1,12 +1,14 @@
 package com.llambies.pokekanban;
 
 import android.content.Context;
+import android.os.Build;
 import androidx.annotation.NonNull;
 import androidx.work.Constraints;
 import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.ExistingWorkPolicy;
 import androidx.work.NetworkType;
 import androidx.work.OneTimeWorkRequest;
+import androidx.work.OutOfQuotaPolicy;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 import androidx.work.Worker;
@@ -23,8 +25,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * Downloads the agenda and the upcoming reminders from the server (changes made on other devices)
- * every half hour, then refreshes the widget and the scheduled alarms.
+ * Downloads the agenda and the upcoming reminders from the server (changes made on other devices),
+ * then refreshes the widget and the scheduled alarms. The server asks for it with a push when
+ * something changes (PushReceiver); every half hour it runs anyway, in case a push got lost.
  */
 public class SyncWorker extends Worker {
 
@@ -51,33 +54,43 @@ public class SyncWorker extends Worker {
     }
 
     static void runSoon(Context ctx, long delaySeconds) {
-        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(SyncWorker.class)
-            .setConstraints(online())
-            .setInitialDelay(delaySeconds, TimeUnit.SECONDS)
-            .build();
-        WorkManager.getInstance(ctx).enqueueUniqueWork(ONCE, ExistingWorkPolicy.REPLACE, request);
+        OneTimeWorkRequest.Builder request = new OneTimeWorkRequest.Builder(SyncWorker.class).setConstraints(online());
+        // "Now" also means now on a sleeping phone (expedited work; older Androids would need a foreground service).
+        if (delaySeconds > 0) request.setInitialDelay(delaySeconds, TimeUnit.SECONDS);
+        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) request.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST);
+        WorkManager.getInstance(ctx).enqueueUniqueWork(ONCE, ExistingWorkPolicy.REPLACE, request.build());
     }
 
     @NonNull
     @Override
     public Result doWork() {
         Context ctx = getApplicationContext();
+        if (!sync(ctx, 15000, 20000)) return Result.retry();
+        sprites(ctx);
+        return Result.success();
+    }
+
+    /**
+     * Fetches the agenda and reminders, schedules the alarms and refreshes the widget.
+     * False: it did not work this time (no connection, server error) and is worth another try.
+     */
+    static boolean sync(Context ctx, int connectTimeout, int readTimeout) {
         String cookie = Store.cookie(ctx);
-        if (cookie == null) return Result.success();
+        if (cookie == null) return true;
         HttpURLConnection conn = null;
         try {
             conn = (HttpURLConnection) new URL(Store.baseUrl(ctx) + "/api/agenda?days=21&reminders=1").openConnection();
-            conn.setConnectTimeout(15000);
-            conn.setReadTimeout(20000);
+            conn.setConnectTimeout(connectTimeout);
+            conn.setReadTimeout(readTimeout);
             conn.setRequestProperty("Cookie", cookie);
             conn.setRequestProperty("Accept", "application/json");
             int status = conn.getResponseCode();
             if (status == 401) {
                 Store.setNeedsLogin(ctx, true);
                 AgendaWidget.refreshAll(ctx);
-                return Result.success();
+                return true;
             }
-            if (status != 200) return Result.retry();
+            if (status != 200) return false;
             keepRenewedSession(ctx, conn);
             JSONObject body = new JSONObject(read(conn.getInputStream()));
             JSONArray reminders = body.optJSONArray("reminders");
@@ -86,14 +99,19 @@ public class SyncWorker extends Worker {
             if (reminders != null) Store.saveReminders(ctx, reminders.toString());
             Store.setNeedsLogin(ctx, false);
             Reminders.schedule(ctx);
-            PokeSprites.prefetch(ctx, body.optJSONArray("items"), reminders);
             AgendaWidget.refreshAll(ctx);
-            return Result.success();
+            return true;
         } catch (Exception e) {
-            return Result.retry();
+            return false;
         } finally {
             if (conn != null) conn.disconnect();
         }
+    }
+
+    /** Pokémon icons: download the new ones so the widget and notifications have them offline. */
+    static void sprites(Context ctx) {
+        PokeSprites.prefetch(ctx, Store.agenda(ctx).optJSONArray("items"), Store.reminders(ctx));
+        AgendaWidget.refreshAll(ctx);
     }
 
     /** The server renews the session cookie now and then; keep the new one. */

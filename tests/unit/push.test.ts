@@ -50,11 +50,11 @@ function memoryStorage() {
   };
 }
 
-async function subscription() {
+async function subscription(endpoint = 'https://push.example/send/abc') {
   const ua = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
   const raw = await crypto.subtle.exportKey('raw', ua.publicKey);
   return {
-    endpoint: 'https://push.example/send/abc',
+    endpoint,
     keys: { p256dh: b64url(raw), auth: b64url(crypto.getRandomValues(new Uint8Array(16))) },
   };
 }
@@ -71,11 +71,11 @@ function setup() {
       return new Response(null, { status });
     },
   });
-  const call = async (path: string, json?: unknown, method = json === undefined ? 'GET' : 'POST') =>
+  const call = async (path: string, json?: unknown, method = json === undefined ? 'GET' : 'POST', headers: Record<string, string> = {}) =>
     handle(
       new Request(`https://kanban.example${path}`, {
         method,
-        headers: json === undefined ? {} : { 'content-type': 'application/json' },
+        headers: json === undefined ? headers : { 'content-type': 'application/json', ...headers },
         body: json === undefined ? undefined : JSON.stringify(json),
       }),
     ) as Promise<Response>;
@@ -124,6 +124,56 @@ describe('reminders by push', () => {
     await api.call('/api/push/subscribe', { subscription: sub, device: 'Móvil' });
     expect((await api.call('/api/push/test', { endpoint: sub.endpoint })).status).toBe(502);
     expect((await (await api.call('/api/push')).json()).devices).toEqual([]);
+  });
+
+  it('tells the Android app to sync when its copy of the calendar changes and when a reminder is due', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-28T08:00:00Z'));
+    const api = setup();
+    const app = 'https://fcm.example/send/app';
+    let rev = 0;
+    const save = async (next: unknown, headers?: Record<string, string>) => {
+      expect((await api.call('/api/data', { baseRev: rev, data: next }, 'PUT', headers)).status).toBe(200);
+      rev++;
+    };
+    const pushes = () => api.sent.splice(0).map((p) => `${p.url} ${(p.init.headers as Record<string, string>).urgency}`);
+    const withEvent = (id: string, start: string) => ({
+      ...data,
+      events: { ...data.events, [id]: { ...data.events.e1, id, title: 'Llamar', start, reminders: [0] } },
+    });
+
+    await save(data);
+    await api.call('/api/push/subscribe', { subscription: await subscription(), device: 'Navegador' });
+    await api.call('/api/push/subscribe', { subscription: await subscription('https://fcm.example/send/old'), device: 'Android · App', native: true });
+    await api.call('/api/push/subscribe', { subscription: await subscription(app), device: 'Android · App', native: true, replaces: 'https://fcm.example/send/old' });
+    expect((await (await api.call('/api/push')).json()).devices).toEqual(['Navegador', 'Android · App']);
+    expect(pushes()).toEqual([]);
+
+    // A reminder two minutes away, added from another device: the phone must hear about it now.
+    const soon = withEvent('e2', '2026-09-28T08:02');
+    await save(soon);
+    expect(pushes()).toEqual([`${app} high`]);
+    expect(api.alarms.at(-1)).toBe(Date.parse('2026-09-28T08:02:00Z') + 500);
+    // Nothing the app keeps changed (a board did): no push.
+    await save({ ...soon, boards: { b1: { id: 'b1', title: 'Casa', listIds: [] } } });
+    expect(pushes()).toEqual([]);
+    // Something days away: no need to wake the phone up for it.
+    const later = withEvent('e3', '2026-09-30T10:00');
+    await save({ ...later, events: { ...later.events, e2: soon.events.e2 } });
+    expect(pushes()).toEqual([`${app} normal`]);
+    // The app's own saves don't come back to it.
+    await save(soon, { 'x-pokekanban-device': app });
+    expect(pushes()).toEqual([]);
+
+    // Reminder time: browsers get the notification, the app a wake-up (it shows its own).
+    vi.setSystemTime(new Date('2026-09-28T08:02:01Z'));
+    expect(await api.handle.runAlarm()).toBe(1);
+    expect(pushes()).toEqual(['https://push.example/send/abc high', `${app} high`]);
+    expect(await api.handle.runAlarm()).toBe(0);
+    expect(pushes()).toEqual([]);
+
+    expect((await api.call('/api/push/test', { endpoint: app })).status).toBe(200);
+    expect(pushes()).toEqual([`${app} high`]);
   });
 
   it('serves the agenda for the widget', async () => {

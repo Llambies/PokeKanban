@@ -14,6 +14,7 @@
 //   GET  /api/uploads/<file>   -> uploaded file (sandboxed)
 //   GET  /api/push             -> { publicKey, devices }     (VAPID key for PushManager.subscribe)
 //   POST /api/push/subscribe   <- { subscription, device }   POST /api/push/unsubscribe <- { endpoint }
+//                              (the Android app adds `native: true`, and `replaces` when its endpoint changed)
 //   POST /api/push/test        <- { endpoint }               -> sends a test notification
 //   GET  /api/agenda?days=14   -> { today, timeZone, items[, reminders] }  (Android widget and alarms)
 //   GET  /api/keys             -> [{ id, name, scope, prefix, createdAt, lastUsedAt }]   (session; API keys for agents)
@@ -37,6 +38,8 @@
 //
 // Reminders are sent as Web Push notifications. The platform passes a `scheduler` ({ set(ms|null) })
 // that calls `handle.runAlarm()` at that time (setTimeout on Node, Durable Object alarms on Cloudflare).
+// The Android app shows its reminders itself, from a copy of the calendar: instead of each reminder it
+// gets a push that means "fetch /api/agenda again" when that copy changes and when a reminder is due.
 
 import { agenda, collectReminders, dayKeyAt } from '../shared/calendar.js';
 import { generateVapidKeys, sendPush } from './push.mjs';
@@ -58,6 +61,13 @@ const ROUTE = /(?:^|\/)api\/(session|login|logout|meta|data|backups|uploads|push
 const MAX_LATE_ON_SAVE = 10 * 60 * 1000;
 const MAX_LATE_ON_ALARM = 6 * 3600 * 1000;
 const MAX_SUBSCRIPTIONS = 20;
+// What the Android app asks /api/agenda for, and how soon a reminder must be for a change to wake the phone.
+const APP_AGENDA_DAYS = 21;
+const APP_REMINDER_DAYS = 8;
+const APP_URGENT_MS = 60 * 60 * 1000;
+// The app still shows a reminder up to 10 minutes late (a push can take a while to reach a phone).
+const APP_LATE_MS = 10 * 60 * 1000;
+const SYNC_MESSAGE = { type: 'sync' };
 export const BACKUP_NAME = /^pokekanban-(\d{4}-\d{2}-\d{2})(?:-(\d{2})h)?\.json$/;
 const UPLOAD_NAME = /^[\w-]+(\.[a-z0-9]+)?$/;
 
@@ -258,15 +268,16 @@ export function createHandler({ storage, password = '', requirePassword = false,
         if (!body.force && body.baseRev !== current.rev) {
           return json(409, { error: 'conflict', rev: current.rev, savedAt: current.savedAt });
         }
-        const next = await commit(current, body.data);
+        // The Android app says which subscription is its own: it already has what it is saving.
+        const next = await commit(current, body.data, request.headers.get('x-pokekanban-device'));
         return json(200, { rev: next.rev, savedAt: next.savedAt });
       })
       .catch((err) => json(500, { error: String(err?.message ?? err) })));
     return result;
   }
 
-  /** Writes a new revision (call it inside `queue`). */
-  async function commit(current, data) {
+  /** Writes a new revision (call it inside `queue`). `origin`: push endpoint of the app that saves, if any. */
+  async function commit(current, data, origin = null) {
     const next = { rev: current.rev + 1, savedAt: new Date().toISOString(), data };
     const text = JSON.stringify(next);
     // Before the first save of each hour, keep the previous state as a backup.
@@ -274,8 +285,8 @@ export function createHandler({ storage, password = '', requirePassword = false,
     await storage.writeDoc(text);
     doc = { rev: next.rev, savedAt: next.savedAt, text };
     await prune();
-    // Reminders may have changed: send what is due now and plan the next one.
-    await pushWork(MAX_LATE_ON_SAVE).catch(() => {});
+    // Reminders may have changed: send what is due now, tell the apps and plan the next one.
+    await pushWork(MAX_LATE_ON_SAVE, { before: current.text, origin }).catch(() => {});
     return next;
   }
 
@@ -439,13 +450,13 @@ export function createHandler({ storage, password = '', requirePassword = false,
     return JSON.parse(text).data ?? null;
   }
 
-  async function sendToAll(state, messages) {
+  async function sendTo(state, subscriptions, messages, options) {
     const gone = new Set();
     let sent = 0;
     for (const message of messages) {
-      for (const sub of state.subscriptions) {
+      for (const sub of subscriptions) {
         if (gone.has(sub.endpoint)) continue;
-        const result = await sendPush(sub, message, state.vapid, state.subject, fetchImpl);
+        const result = await sendPush(sub, message, state.vapid, state.subject, fetchImpl, options);
         if (result.gone) gone.add(sub.endpoint);
         if (result.ok) sent++;
       }
@@ -454,8 +465,39 @@ export function createHandler({ storage, password = '', requirePassword = false,
     return sent;
   }
 
-  /** Sends reminders due since the last check (at most `maxLate` old) and schedules the next one. */
-  function pushWork(maxLate) {
+  /** The Android app's copy of the calendar: what /api/agenda?days=21&reminders=1 answers, minus the clock. */
+  function appView(data, now) {
+    const timeZone = data.settings?.timeZone || 'UTC';
+    return JSON.stringify({
+      timeZone,
+      items: agenda(data, dayKeyAt(now, timeZone), APP_AGENDA_DAYS, { timeZone, now }),
+      reminders: collectReminders(data, now - APP_LATE_MS, now + APP_REMINDER_DAYS * 86400e3),
+    });
+  }
+
+  /**
+   * How much a save matters to the Android app: "high" when a reminder of the next hour changed (wake
+   * the phone now), "normal" when only the rest of its copy did, null when it has nothing new to fetch.
+   */
+  function appChange(beforeText, data, now) {
+    let before = null;
+    try {
+      before = JSON.parse(beforeText).data;
+    } catch {
+      // No previous document to compare with.
+    }
+    before ??= {};
+    const soon = (d) => JSON.stringify(collectReminders(d, now - APP_LATE_MS, now + APP_URGENT_MS));
+    if (soon(before) !== soon(data)) return 'high';
+    return appView(before, now) !== appView(data, now) ? 'normal' : null;
+  }
+
+  /**
+   * Sends reminders due since the last check (at most `maxLate` old) and schedules the next one.
+   * `change` ({ before, origin }) comes with a save: the document text before it and the app that made it.
+   * Returns how many reminder notifications were sent to browsers.
+   */
+  function pushWork(maxLate, change = null) {
     return withPush(async () => {
       const state = await loadPush();
       const now = Date.now();
@@ -466,16 +508,20 @@ export function createHandler({ storage, password = '', requirePassword = false,
       const data = await currentData();
       const from = Math.max(state.lastCheck ?? now, now - maxLate);
       state.lastCheck = now;
-      let sent = 0;
-      if (data && from < now) {
-        const due = collectReminders(data, from, now).slice(0, 20);
-        sent = await sendToAll(
-          state,
-          due.map((r) => {
-            const poke = pokemonKey(r.icon);
-            return { title: r.title, body: r.body, tag: r.id, url: r.url, ...(poke ? { icon: pokemonSpriteUrl(poke) } : {}) };
-          }),
-        );
+      const due = data && from < now ? collectReminders(data, from, now).slice(0, 20) : [];
+      const sent = await sendTo(
+        state,
+        state.subscriptions.filter((s) => !s.native),
+        due.map((r) => {
+          const poke = pokemonKey(r.icon);
+          return { title: r.title, body: r.body, tag: r.id, url: r.url, ...(poke ? { icon: pokemonSpriteUrl(poke) } : {}) };
+        }),
+      );
+      // A due reminder wakes every app up (it may have missed the change that created it).
+      const apps = state.subscriptions.filter((s) => s.native && (due.length > 0 || s.endpoint !== change?.origin));
+      if (data && apps.length) {
+        const urgency = due.length ? 'high' : change ? appChange(change.before, data, now) : null;
+        if (urgency) await sendTo(state, apps, [SYNC_MESSAGE], { urgency, topic: 'sync' });
       }
       await savePush();
       if (scheduler) {
@@ -517,12 +563,13 @@ export function createHandler({ storage, password = '', requirePassword = false,
         state.vapid ??= await generateVapidKeys();
         state.subject = url.protocol === 'https:' ? url.origin : 'mailto:pokekanban@localhost';
         state.lastCheck ??= Date.now();
-        state.subscriptions = state.subscriptions.filter((s) => s.endpoint !== sub.endpoint);
+        state.subscriptions = state.subscriptions.filter((s) => s.endpoint !== sub.endpoint && s.endpoint !== body.replaces);
         state.subscriptions.push({
           endpoint: sub.endpoint,
           keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth },
           device: String(body.device ?? '').slice(0, 80) || 'Dispositivo',
           createdAt: Date.now(),
+          ...(body.native === true ? { native: true } : {}),
         });
         state.subscriptions = state.subscriptions.slice(-MAX_SUBSCRIPTIONS);
         await savePush();
@@ -545,10 +592,14 @@ export function createHandler({ storage, password = '', requirePassword = false,
       if (!sub || !state.vapid) return json(404, { error: 'Este dispositivo no está suscrito' });
       const result = await sendPush(
         sub,
-        { title: '🔔 Notificaciones activadas', body: 'Así te avisaré de tus eventos, cumpleaños y fechas límite.', tag: 'test', url: '#/calendar' },
+        sub.native
+          ? SYNC_MESSAGE
+          : { title: '🔔 Notificaciones activadas', body: 'Así te avisaré de tus eventos, cumpleaños y fechas límite.', tag: 'test', url: '#/calendar' },
         state.vapid,
         state.subject,
         fetchImpl,
+        // The same kind of push the app gets for real.
+        sub.native ? { urgency: 'high', topic: 'sync' } : {},
       );
       if (result.gone) {
         await withPush(async () => {
@@ -570,7 +621,7 @@ export function createHandler({ storage, password = '', requirePassword = false,
     const now = Date.now();
     const body = { today, timeZone, generatedAt: now, items: agenda(data, from, days, { timeZone }) };
     // The Android app's background sync also schedules the upcoming reminders as alarms.
-    if (url.searchParams.get('reminders') === '1') body.reminders = collectReminders(data, now - 60_000, now + 8 * 86400e3);
+    if (url.searchParams.get('reminders') === '1') body.reminders = collectReminders(data, now - APP_LATE_MS, now + APP_REMINDER_DAYS * 86400e3);
     return json(200, body);
   }
 
