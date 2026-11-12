@@ -2,7 +2,9 @@ import type { CSSProperties } from 'react';
 import { Check, MapPin, Repeat } from 'lucide-react';
 import { getColor } from '../../lib/colors';
 import { iconColor } from '../../../shared/palette.js';
-import { durationText, itemTitle, type CalItem } from '../../lib/calendar';
+import { daysLeftText, durationText, itemTitle, type CalItem } from '../../lib/calendar';
+import { todayKey } from '../../lib/dates';
+import { keyToDay } from '../../../shared/calendar.js';
 import { recurrenceSummary } from '../../lib/calendar';
 import { useStore } from '../../store/store';
 import { IconGlyph } from '../common/LabelChip';
@@ -100,6 +102,10 @@ export function AgendaRow({ item, showDate }: { item: CalItem; showDate?: string
   if (item.card && boardTitle) detail.push(boardTitle);
   if (item.event?.location) detail.push(item.event.location);
   const color = getColor(item.colorKey);
+  // Pending deadlines say how many days are left.
+  const today = todayKey();
+  const countdown = item.event?.kind === 'deadline' && !item.done && !item.overdue && item.occ >= today ? daysLeftText(item.occ, today) : '';
+  const soon = countdown !== '' && keyToDay(item.occ) - keyToDay(today) <= 3;
   return (
     <div
       role="button"
@@ -131,9 +137,10 @@ export function AgendaRow({ item, showDate }: { item: CalItem; showDate?: string
       <span className="agenda-row__icon">{item.icon && <IconGlyph icon={item.icon} size={16} />}</span>
       <span className="agenda-row__main">
         <span className="agenda-row__title">{itemTitle(item)}</span>
-        {(detail.length > 0 || item.event?.recurrence || item.overdue) && (
+        {(detail.length > 0 || item.event?.recurrence || item.overdue || countdown) && (
           <span className="agenda-row__detail">
             {item.overdue && <span className="agenda-row__late">{item.type === 'card' ? 'Vencida' : 'Pendiente'}</span>}
+            {countdown && <span className={`agenda-row__left ${soon ? 'is-soon' : ''}`}>{countdown}</span>}
             {item.event?.location && <MapPin size={11} />}
             {detail.join(' · ')}
             {item.event?.recurrence && item.event.kind !== 'birthday' && item.event.kind !== 'anniversary' && (

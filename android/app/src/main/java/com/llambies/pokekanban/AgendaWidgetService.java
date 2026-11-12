@@ -70,6 +70,8 @@ public class AgendaWidgetService extends RemoteViewsService {
 
             String detail = item.optString("detail", "");
             if (overdue) detail = detail.isEmpty() ? "Pendiente" : "Pendiente · " + detail;
+            String left = Agenda.daysLeft(item, Agenda.todayKey());
+            if (!left.isEmpty()) detail = detail.isEmpty() ? left : left + " · " + detail;
             views.setTextViewText(R.id.item_detail, detail);
             views.setViewVisibility(R.id.item_detail, detail.isEmpty() ? View.GONE : View.VISIBLE);
 

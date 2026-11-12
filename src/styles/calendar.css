@@ -384,6 +384,10 @@
 
 .agenda-row__date {
   font-weight: 600;
+  color: var(--text-subtle);
+}
+
+.agenda-row.is-overdue .agenda-row__date {
   color: var(--danger);
 }
 
@@ -422,6 +426,20 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   color: var(--text-muted);
+}
+
+/* Days left until a deadline; orange when there are 3 or fewer. */
+.agenda-row__left {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--primary-subtle);
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.agenda-row__left.is-soon {
+  background: var(--warning-subtle);
+  color: var(--warning);
 }
 
 .agenda-row__late {
@@ -501,6 +519,19 @@
 
 .cal-agenda__group.is-today .cal-agenda__day {
   color: var(--primary);
+}
+
+.cal-agenda__sub {
+  margin: 10px 6px 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-subtle);
+}
+
+.cal-agenda__none {
+  margin: 0 6px;
 }
 
 .cal-agenda__empty {

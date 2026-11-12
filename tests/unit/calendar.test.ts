@@ -4,8 +4,8 @@ import {
 } from '../../shared/calendar.js';
 import type { AppData, CalendarEvent, Recurrence } from '../../src/types';
 import {
-  calendarItems, clampHourPx, droppedRange, durationText, EMPTY_CAL_FILTER, fitHourPx, hourLabelStep, MAX_HOUR_PX, resizedRange, selectedRange,
-  timeRangeText,
+  calendarItems, clampHourPx, daysLeftText, droppedRange, durationText, EMPTY_CAL_FILTER, fitHourPx, hourLabelStep, MAX_HOUR_PX, resizedRange, selectedRange,
+  shortDayText, timeRangeText, upcomingDeadlines,
 } from '../../src/lib/calendar';
 import * as S from '../../src/store/store';
 import * as C from '../../src/store/calendar';
@@ -166,6 +166,24 @@ describe('calendar view items', () => {
     const byDay = calendarItems(dataWith([party]), '2026-09-28', '2026-09-29', EMPTY_CAL_FILTER, now);
     expect(byDay.get('2026-09-28')?.map((i) => [i.multiDay, i.time, i.endTime])).toEqual([[false, '23:00', '00:00']]);
     expect(byDay.get('2026-09-29')).toBeUndefined();
+  });
+
+  it('lists the next pending deadlines with the days left', () => {
+    const tax = makeEvent('deadline', '2026-09-20', { title: 'Impuestos', reminders: [] });
+    const rent = makeEvent('deadline', '2026-09-03', { title: 'Alquiler', reminders: [], recurrence: rule({ freq: 'monthly' }) });
+    const paid = makeEvent('deadline', '2026-09-05', { title: 'Pagado', reminders: [], done: ['2026-09-05'] });
+    const today = makeEvent('deadline', '2026-09-01', { title: 'Hoy', reminders: [] });
+    const meeting = ev('2026-09-02T10:00', null, { title: 'Reunión' });
+    const byDay = calendarItems(dataWith([tax, rent, paid, today, meeting]), '2026-09-02', '2026-10-31', EMPTY_CAL_FILTER, now);
+    // Only deadlines after today, not done, nearest first, each repetition on its own.
+    expect(upcomingDeadlines(byDay, '2026-09-01').map((i) => `${i.title} ${i.day}`)).toEqual([
+      'Alquiler 2026-09-03', 'Impuestos 2026-09-20', 'Alquiler 2026-10-03',
+    ]);
+    expect(daysLeftText('2026-09-01', '2026-09-01')).toBe('Vence hoy');
+    expect(daysLeftText('2026-09-02', '2026-09-01')).toBe('Vence mañana');
+    expect(daysLeftText('2026-09-20', '2026-09-01')).toBe('Faltan 19 días');
+    expect(daysLeftText('2026-10-03', '2026-09-28')).toBe('Faltan 5 días');
+    expect(shortDayText('2026-11-14')).toBe('sáb 14 nov');
   });
 
   it('computes the new time of a dragged block, keeping the duration', () => {

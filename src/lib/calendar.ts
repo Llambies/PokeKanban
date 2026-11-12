@@ -56,6 +56,11 @@ export function dayMonthText(key: string, withYear = false): string {
   return withYear ? `${text} de ${key.slice(0, 4)}` : text;
 }
 
+/** "sáb 14 nov". */
+export function shortDayText(key: string): string {
+  return `${WEEKDAYS_SHORT[weekdayOf(keyToDay(key)) - 1]} ${Number(key.slice(8, 10))} ${MONTHS_SHORT[Number(key.slice(5, 7)) - 1]}`;
+}
+
 export function shortDate(key: string): string {
   return `${Number(key.slice(8, 10))} ${MONTHS_SHORT[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}`;
 }
@@ -309,6 +314,27 @@ export function calendarItems(data: AppData, fromKey: string, toKey: string, fil
     );
   }
   return byDay;
+}
+
+/* -------------------------------------------------------------- deadlines */
+
+/** How far ahead "Hoy" looks for the next deadlines (agenda and home page). */
+export const DEADLINE_DAYS = 60;
+
+/** Pending deadlines found in `byDay` that fall after `today`, nearest first (one per occurrence). */
+export function upcomingDeadlines(byDay: Map<string, CalItem[]>, today: string): CalItem[] {
+  return [...byDay.values()]
+    .flat()
+    .filter((it) => it.event?.kind === 'deadline' && it.first && !it.done && it.day > today)
+    .sort((a, b) => a.day.localeCompare(b.day) || Number(!a.allDay) - Number(!b.allDay) || a.time.localeCompare(b.time) || a.title.localeCompare(b.title));
+}
+
+/** Countdown of a pending deadline: "Vence hoy", "Vence mañana", "Faltan 12 días". */
+export function daysLeftText(day: string, today: string): string {
+  const days = keyToDay(day) - keyToDay(today);
+  if (days <= 0) return 'Vence hoy';
+  if (days === 1) return 'Vence mañana';
+  return `Faltan ${days} días`;
 }
 
 /** Title shown for an item: birthdays and anniversaries get the years. */

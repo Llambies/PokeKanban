@@ -70,6 +70,18 @@ final class Agenda {
         return Integer.parseInt(time.substring(0, 2)) * 60 + Integer.parseInt(time.substring(3, 5));
     }
 
+    /** Days left until a pending deadline, as in the app: "Vence hoy", "Vence mañana", "Faltan 12 días". Empty for the rest. */
+    static String daysLeft(JSONObject item, String today) {
+        if (!"deadline".equals(item.optString("kind")) || item.optBoolean("done") || item.optBoolean("overdue")) return "";
+        String date = item.optString("date", "");
+        if (date.length() < 10) return "";
+        long diff = Math.round((parse(date).getTimeInMillis() - parse(today).getTimeInMillis()) / 86400000.0);
+        if (diff < 0) return "";
+        if (diff == 0) return "Vence hoy";
+        if (diff == 1) return "Vence mañana";
+        return "Faltan " + diff + " días";
+    }
+
     /** "lunes, 28 de septiembre". */
     static String longDate(String key) {
         Calendar c = parse(key);

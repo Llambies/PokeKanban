@@ -7,8 +7,8 @@ import { editOccurrence } from '../../store/calendar';
 import { getData, updateCard } from '../../store/store';
 import { monthMatrix, toDateKey, todayKey, WEEKDAYS_SHORT } from '../../lib/dates';
 import {
-  calendarItems, clampHourPx, dayMonthText, droppedRange, durationText, fitHourPx, fromTotal, hourLabelStep, itemTitle, KIND_INFO, KIND_ORDER,
-  MAX_HOUR_PX, resizedRange, selectedRange, timeRangeText, toTotal, type CalItem,
+  calendarItems, clampHourPx, dayMonthText, DEADLINE_DAYS, droppedRange, durationText, fitHourPx, fromTotal, hourLabelStep, itemTitle, KIND_INFO, KIND_ORDER,
+  MAX_HOUR_PX, resizedRange, selectedRange, shortDayText, timeRangeText, toTotal, upcomingDeadlines, type CalItem,
 } from '../../lib/calendar';
 import { dayToKey, keyToDay, weekdayOf, WEEKDAY_NAMES } from '../../../shared/calendar.js';
 import { IconGlyph } from '../common/LabelChip';
@@ -974,6 +974,11 @@ export function AgendaView({ anchor }: { anchor: string }) {
   const past = useCalendarItems(dayToKey(from - 30), dayToKey(from - 1));
   const upcoming = useCalendarItems(anchor, dayToKey(from + days - 1));
   const today = todayKey();
+  const todayNum = keyToDay(today);
+  const showsToday = todayNum >= from && todayNum < from + days;
+  // Today also reminds of the next deadlines, with the days left.
+  const ahead = useCalendarItems(dayToKey(todayNum + 1), dayToKey(todayNum + DEADLINE_DAYS));
+  const deadlines = useMemo(() => (showsToday ? upcomingDeadlines(ahead, today) : []), [ahead, today, showsToday]);
 
   const overdue = useMemo(
     () => [...past.values()].flat().filter((it) => it.overdue && it.first).sort((a, b) => a.day.localeCompare(b.day)),
@@ -985,10 +990,10 @@ export function AgendaView({ anchor }: { anchor: string }) {
       const key = dayToKey(d);
       // Multi-day items only on their first day (or the first day shown).
       const list = (upcoming.get(key) ?? []).filter((it) => it.first || d === from);
-      if (list.length) out.push([key, list]);
+      if (list.length || (key === today && deadlines.length)) out.push([key, list]);
     }
     return out;
-  }, [upcoming, from, days]);
+  }, [upcoming, from, days, today, deadlines.length]);
 
   return (
     <div className="cal-agenda">
@@ -1011,6 +1016,15 @@ export function AgendaView({ anchor }: { anchor: string }) {
           {list.map((it) => (
             <AgendaRow key={it.key} item={it} />
           ))}
+          {day === today && deadlines.length > 0 && (
+            <>
+              {list.length === 0 && <p className="cal-agenda__none muted small">Nada para hoy.</p>}
+              <h4 className="cal-agenda__sub">Próximas fechas límite</h4>
+              {deadlines.map((it) => (
+                <AgendaRow key={`next:${it.key}`} item={it} showDate={shortDayText(it.day)} />
+              ))}
+            </>
+          )}
         </section>
       ))}
       {groups.length === 0 && overdue.length === 0 && (

@@ -64,6 +64,9 @@ Los datos son tuyos: se guardan en un archivo JSON en tu máquina, en tu cuenta 
   (pantalla táctil o touchpad), las lupas de la esquina o − / +: del día completo (de 00 a 24 sin scroll) a
   horas bien altas. Clic derecho para cambiar color, icono,
   etiquetas, avisos, moverlo o borrarlo. Filtros por tipo, etiqueta y texto. «Próximos días» en el inicio.
+- **Fechas límite con cuenta atrás**: cada una indica cuánto falta («Vence hoy», «Vence mañana», «Faltan 12 días»,
+  en naranja cuando quedan 3 días o menos). En la agenda, el día de hoy lista las próximas fechas límite de los
+  siguientes 60 días, y el inicio, las 3 más cercanas. El widget de Android también muestra los días que faltan.
 - **Notificaciones**: *Calendario → Ajustes → Activar notificaciones* en cada dispositivo (Chrome, Edge,
   Firefox, Android; en iPhone hay que añadir antes la web a la pantalla de inicio). El servidor las envía a su
   hora aunque la app esté cerrada.
