@@ -90,7 +90,6 @@ export function DayPanel({ day, items }: { day: string; items: CalItem[] }) {
       <div className="day-panel__list">
         {items.length === 0 ? <p className="muted small">Nada este día.</p> : items.map((it) => <AgendaRow key={it.key} item={it} />)}
       </div>
-      <AddButtons day={day} />
     </aside>
   );
 }
