@@ -48,6 +48,8 @@ export function App() {
   const eventDraftOpen = useUI((s) => s.eventDraft !== null);
   useTheme();
   useGlobalShortcuts();
+  // Paints the board background again when the "Cielo" one changes with the hour.
+  useSkyPeriod();
 
   // Filters and panels belong to the board being viewed.
   useEffect(() => {
@@ -116,7 +118,6 @@ export function App() {
     );
   }
 
-  useSkyPeriod();
   const bg = board ? getBoardBackground(board.background) : null;
 
   return (
