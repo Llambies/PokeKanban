@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { contrastRatio, contrastText, getBoardBackground } from '../../src/lib/colors';
+import {
+  BACKGROUND_GROUPS, BOARD_BACKGROUNDS, backgroundGroupOf, getBoardBackground, parsePattern, patternKey, PATTERN_COLORS, PATTERNS,
+  SKY_KEY, SKY_PERIODS, skyBackground, skyPeriod,
+} from '../../src/lib/backgrounds';
+import { contrastRatio, contrastText } from '../../src/lib/colors';
 import { DARK_TEXT, HUES, iconColor, LIGHT_TEXT } from '../../shared/palette.js';
 
 describe('contrastText', () => {
@@ -66,22 +70,136 @@ describe('getBoardBackground scrim', () => {
     };
     for (const [key, lightest] of Object.entries(lightestByKey)) {
       const bg = getBoardBackground(key);
-      const alpha = bg.scrim ? Number(/rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)/.exec(bg.scrim)?.[1]) : 0.24;
+      const alpha = scrimAlpha(bg.scrim);
       expect(alpha).toBeGreaterThanOrEqual(0.24);
       const scrimmed = blackOver(lightest, alpha);
       expect(contrastRatio('#ffffff', scrimmed)).toBeGreaterThanOrEqual(4.5);
     }
   });
 
+  it('gives every other preset enough scrim for its lightest color', () => {
+    // The colors inside url("…") layers (stars, windows, the Poké Ball) are small details, not
+    // what the text sits on. Scenes are checked apart: their horizon is brighter than their top.
+    for (const group of BACKGROUND_GROUPS) {
+      if (group.key === 'scene') continue;
+      for (const bg of group.items) {
+        const hexes = bg.css.replace(/url\("[^"]*"\)/g, '').match(/#[0-9a-f]{6}\b/gi) ?? [];
+        expect(hexes.length, bg.key).toBeGreaterThan(0);
+        for (const hex of hexes) expect(contrastRatio('#ffffff', blackOver(hex, scrimAlpha(bg.scrim))), `${bg.key} ${hex}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it('gives the scenes enough scrim for the top of their sky', () => {
+    const topByKey: Record<string, string> = {
+      mountains: '#352c63',
+      dunes: '#e0703c',
+      sea: '#579dff',
+      pines: '#17684a',
+      city: '#1b1740',
+      stars: '#06132b',
+    };
+    for (const [key, top] of Object.entries(topByKey)) {
+      const bg = getBoardBackground(key);
+      expect(bg.key).toBe(key);
+      expect(contrastRatio('#ffffff', blackOver(top, scrimAlpha(bg.scrim))), key).toBeGreaterThanOrEqual(4.5);
+    }
+    const skyTops = { dawn: '#6e5dc6', day: '#0c66e4', dusk: '#352c63', night: '#05102a' };
+    for (const period of SKY_PERIODS) {
+      expect(contrastRatio('#ffffff', blackOver(skyTops[period], scrimAlpha(skyBackground(period).scrim))), period).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('gives patterns a safe scrim on any color, including light ones', () => {
+    for (const { hex } of [...PATTERN_COLORS, { hex: '#ffffff' }, { hex: '#f5cd47' }]) {
+      for (const { key } of PATTERNS) {
+        const bg = getBoardBackground(patternKey(key, hex));
+        expect(contrastRatio('#ffffff', blackOver(hex, scrimAlpha(bg.scrim))), `${key} ${hex}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
   it('computes a safe scrim for custom hex backgrounds, including near-white ones', () => {
     for (const hex of ['#ffffff', '#fdf2ff', '#222222', '#808080']) {
       const bg = getBoardBackground(`custom:${hex}`);
-      const alpha = Number(/rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)/.exec(bg.scrim ?? '')?.[1] ?? '0');
+      const alpha = scrimAlpha(bg.scrim);
       const scrimmed = blackOver(hex, alpha);
       expect(contrastRatio('#ffffff', scrimmed)).toBeGreaterThanOrEqual(4.5);
     }
   });
 });
+
+describe('board backgrounds', () => {
+  it('has unique keys and names, and no key that looks like a prefixed one', () => {
+    const keys = BOARD_BACKGROUNDS.map((b) => b.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(new Set(BOARD_BACKGROUNDS.map((b) => b.name)).size).toBe(keys.length);
+    for (const key of keys) expect(key).not.toMatch(/:/);
+  });
+
+  it('keeps the keys boards already use', () => {
+    const before = ['ocean', 'sunset', 'forest', 'aurora', 'dusk', 'fire', 'candy', 'night', 'blue', 'green', 'orange', 'red', 'purple', 'pink', 'lime', 'sky', 'grey'];
+    for (const key of before) expect(getBoardBackground(key).key).toBe(key);
+    expect(getBoardBackground('sky').name).toBe('Celeste');
+    expect(getBoardBackground('no-such-background').key).toBe('ocean');
+  });
+
+  it('builds a pattern from its type and color', () => {
+    const key = patternKey('waves', '#AE4787');
+    expect(key).toBe('pattern:waves:#ae4787');
+    expect(parsePattern(key)).toEqual({ pattern: 'waves', color: '#ae4787' });
+    const bg = getBoardBackground(key);
+    expect(bg.name).toBe('Olas');
+    expect(bg.base).toBe('#ae4787');
+    expect(bg.css).toContain('#ae4787');
+    // Same pattern, other color: only the color changes.
+    expect(getBoardBackground(patternKey('waves', '#1f845a')).css).toContain('#1f845a');
+    expect(parsePattern('ocean')).toBeNull();
+  });
+
+  it('falls back to a valid pattern and color instead of putting junk in the css', () => {
+    expect(parsePattern('pattern:nope:#12345')).toEqual({ pattern: 'dots', color: '#0c66e4' });
+    const bg = getBoardBackground('pattern:dots:red;background:url(x)');
+    expect(bg.css).not.toContain('url(x)');
+    expect(bg.base).toBe('#0c66e4');
+  });
+
+  it('uses dark ink for patterns on light colors and white ink on dark ones', () => {
+    expect(getBoardBackground(patternKey('dots', '#dcdfe4')).css).toContain('rgba(23, 43, 77');
+    expect(getBoardBackground(patternKey('dots', '#0c66e4')).css).toContain('rgba(255, 255, 255');
+  });
+
+  it('opens the picker on the collection of the current background', () => {
+    expect(backgroundGroupOf('ocean')).toBe('gradient');
+    expect(backgroundGroupOf('nebula')).toBe('mesh');
+    expect(backgroundGroupOf('pattern:grid:#0c66e4')).toBe('pattern');
+    expect(backgroundGroupOf('mountains')).toBe('scene');
+    expect(backgroundGroupOf(SKY_KEY)).toBe('scene');
+    expect(backgroundGroupOf('type-fire')).toBe('type');
+    expect(backgroundGroupOf('grey')).toBe('solid');
+    expect(backgroundGroupOf('custom:#123456')).toBe('solid');
+    expect(backgroundGroupOf('image:https://example.com/a.jpg')).toBeNull();
+  });
+
+  it('changes the sky with the time of day', () => {
+    const at = (hour: number) => new Date(2026, 10, 17, hour, 30);
+    expect([5, 6, 8, 9, 17, 18, 20, 21, 0].map((h) => skyPeriod(at(h)))).toEqual(['night', 'dawn', 'dawn', 'day', 'day', 'dusk', 'dusk', 'night', 'night']);
+    const looks = SKY_PERIODS.map((p) => skyBackground(p).css);
+    expect(new Set(looks).size).toBe(4);
+    expect(getBoardBackground(SKY_KEY, at(12)).css).toBe(skyBackground('day').css);
+    expect(getBoardBackground(SKY_KEY, at(23)).css).toBe(skyBackground('night').css);
+    expect(getBoardBackground(SKY_KEY, at(23)).name).toBe('Cielo');
+  });
+
+  it('draws the scenes the same way every time, in a reasonable size', () => {
+    for (const bg of BOARD_BACKGROUNDS) expect(bg.css.length, bg.key).toBeLessThan(6000);
+    expect(getBoardBackground('city').css).toMatch(/^url\("data:image\/svg\+xml,/);
+  });
+});
+
+function scrimAlpha(scrim: string | undefined): number {
+  return scrim ? Number(/rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)/.exec(scrim)?.[1]) : 0.24;
+}
 
 /** Alpha-composites black at `alpha` over `hex` (same model as a CSS rgba(0,0,0,alpha) overlay). */
 function blackOver(hex: string, alpha: number): string {

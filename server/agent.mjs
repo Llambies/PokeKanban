@@ -438,7 +438,7 @@ tool('get_overview', 'Resumen para orientarse: fecha de hoy, zona horaria, table
 /* --- tableros */
 
 tool('create_board', 'Crea un tablero (con las etiquetas por defecto y sin listas).', {
-  title: S('Título'), background: S('Fondo: clave (p. ej. "ocean", "sunset") o "custom:#rrggbb"'), starred: { type: 'boolean' },
+  title: S('Título'), background: S('Fondo: clave (p. ej. "ocean", "nebula", "mountains", "type-fire", "sky-time"), "pattern:<dots|grid|stripes|blueprint|waves|crosses>:#rrggbb" o "custom:#rrggbb"'), starred: { type: 'boolean' },
 }, ['title'], true, ({ data }, a) => {
   const now = Date.now();
   const board = {

@@ -30,7 +30,9 @@ Los datos son tuyos: se guardan en un archivo JSON en tu máquina, en tu cuenta 
 - **Cabeceras de lista de color**, con opción de teñir toda la columna.
 - **Portadas** de tarjeta (franja o tarjeta completa, color o imagen por URL).
 - **Separadores**: tarjetas que se muestran como cabeceras de color dentro de una lista.
-- 17 fondos de tablero (degradados y colores), color personalizado o imagen propia.
+- Más de 60 fondos de tablero por colecciones: degradados, mallas de color, **tramas** (eliges el dibujo y el color),
+  paisajes dibujados, uno por cada tipo Pokémon y colores lisos; además de «Cielo», que cambia con la hora del día,
+  color personalizado o imagen propia.
 
 **Sub-checklists**
 - Checklists con **subtareas anidadas hasta 5 niveles**.

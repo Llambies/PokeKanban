@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { CalendarDays, Clock, Download, LayoutDashboard, MoreHorizontal, Plus, Star, Upload } from 'lucide-react';
 import { updateBoard, useStore } from '../../store/store';
 import { navigate } from '../../lib/router';
-import { getBoardBackground } from '../../lib/colors';
+import { getBoardBackground } from '../../lib/backgrounds';
+import { useSkyPeriod } from '../../lib/useSkyPeriod';
 import { exportAll, importFromFile } from '../../lib/backup';
 import { dueStatus } from '../../lib/dates';
 import { openContextMenu, openMenuAt } from '../contextmenu/menuStore';
@@ -98,6 +99,7 @@ function BoardTile({ boardId }: { boardId: string }) {
     }
     return `${cards}|${overdue}`;
   });
+  useSkyPeriod();
   if (!board) return null;
   const [cards, overdue] = stats.split('|').map(Number);
   const bg = getBoardBackground(board.background);

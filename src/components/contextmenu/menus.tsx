@@ -9,7 +9,8 @@ import * as S from '../../store/store';
 import { getData } from '../../store/store';
 import { confirmDialog, openPanel, promptDialog, setPrefs, toast, usePrefs, useUI } from '../../store/ui';
 import { cardLink, getRoute, navigate, openCard } from '../../lib/router';
-import { BOARD_BACKGROUNDS, colorName, getBoardBackground, getColor } from '../../lib/colors';
+import { getBoardBackground } from '../../lib/backgrounds';
+import { colorName, getColor } from '../../lib/colors';
 import { PRIORITIES } from '../../lib/priority';
 import { formatFieldValue } from '../../lib/fields';
 import { addDaysKey, formatDate, moveToDay, nextWeekdayKey, todayKey } from '../../lib/dates';
@@ -17,6 +18,7 @@ import { copyToClipboard } from '../../lib/download';
 import { exportBoard } from '../../lib/backup';
 import * as tree from '../../lib/checklist';
 import { IconGlyph } from '../common/LabelChip';
+import { BoardBackgroundMenu } from '../common/BackgroundPicker';
 import { SwatchGrid } from '../common/SwatchGrid';
 import type { MenuItem } from './menuStore';
 
@@ -532,24 +534,7 @@ function backgroundSubmenu(boardId: string): MenuItem[] {
     {
       kind: 'custom',
       key: 'bg-grid',
-      render: () => {
-        const current = getData().boards[boardId]?.background;
-        return (
-          <div className="bg-grid bg-grid--menu">
-            {BOARD_BACKGROUNDS.map((bg) => (
-              <button
-                key={bg.key}
-                type="button"
-                className={`bg-swatch ${current === bg.key ? 'is-selected' : ''}`}
-                style={{ background: bg.css }}
-                title={bg.name}
-                aria-label={bg.name}
-                onClick={() => S.updateBoard(boardId, { background: bg.key })}
-              />
-            ))}
-          </div>
-        );
-      },
+      render: () => <BoardBackgroundMenu boardId={boardId} />,
     },
   ];
 }

@@ -3,7 +3,8 @@ import { useStore } from './store/store';
 import { usePersist } from './store/persistence';
 import { usePrefs, clearFilter, useUI } from './store/ui';
 import { useRoute, navigate } from './lib/router';
-import { getBoardBackground } from './lib/colors';
+import { getBoardBackground } from './lib/backgrounds';
+import { useSkyPeriod } from './lib/useSkyPeriod';
 import { syncSystemBars } from './lib/native';
 import { Header } from './components/layout/Header';
 import { ConflictBanner } from './components/layout/ConflictBanner';
@@ -115,6 +116,7 @@ export function App() {
     );
   }
 
+  useSkyPeriod();
   const bg = board ? getBoardBackground(board.background) : null;
 
   return (

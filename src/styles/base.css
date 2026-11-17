@@ -1302,7 +1302,7 @@ kbd {
 }
 
 .ctx-menu--sheet .swatch-grid,
-.ctx-menu--sheet .bg-grid--menu {
+.ctx-menu--sheet .bg-picker--menu {
   min-width: 0;
   width: 100%;
 }

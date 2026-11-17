@@ -121,7 +121,7 @@ export interface List {
 export interface Board {
   id: ID;
   title: string;
-  /** Key into BOARD_BACKGROUNDS or "custom:#rrggbb". */
+  /** Key into BOARD_BACKGROUNDS, "pattern:<pattern>:#rrggbb", "custom:#rrggbb" or "image:<url>". */
   background: string;
   starred: boolean;
   /** Order of the (non archived) lists in this board. */

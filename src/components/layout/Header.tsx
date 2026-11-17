@@ -7,7 +7,7 @@ import { redo, undo, useStore } from '../../store/store';
 import { logout, usePersist } from '../../store/persistence';
 import { setPrefs, usePrefs, useUI } from '../../store/ui';
 import { navigate, useRoute } from '../../lib/router';
-import { getBoardBackground } from '../../lib/colors';
+import { getBoardBackground } from '../../lib/backgrounds';
 import { exportAll, importFromFile } from '../../lib/backup';
 import { downloadAndroidApp } from '../../lib/download';
 import { isNativeApp } from '../../lib/native';

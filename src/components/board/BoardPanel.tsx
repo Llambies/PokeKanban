@@ -9,7 +9,7 @@ import { useBoard } from '../../store/hooks';
 import { confirmDialog, openPanel, useUI, type BoardPanel as PanelKind } from '../../store/ui';
 import { useLayer } from '../../lib/layers';
 import { captureFocus } from '../../lib/focus';
-import { getBoardBackground } from '../../lib/colors';
+import { getBoardBackground } from '../../lib/backgrounds';
 import { DRAG_HANDLE_INSTRUCTIONS } from '../../lib/dndA11y';
 import { exportBoard } from '../../lib/backup';
 import { navigate } from '../../lib/router';
@@ -17,7 +17,7 @@ import { normalize } from '../../lib/icons';
 import { formatTimestamp } from '../../lib/dates';
 import { LabelChip } from '../common/LabelChip';
 import { LabelEditor } from '../common/LabelEditor';
-import { BackgroundGrid } from '../home/CreateBoardForm';
+import { BackgroundPicker } from '../common/BackgroundPicker';
 import { undoToast } from '../contextmenu/menus';
 import { FieldsManager } from './FieldsManager';
 
@@ -310,7 +310,7 @@ export function BoardPanel({ boardId }: { boardId: string }) {
             <div className="bg-preview" style={{ background: getBoardBackground(board.background).css }}>
               <Image size={18} />
             </div>
-            <BackgroundGrid value={board.background} onChange={(background) => S.updateBoard(boardId, { background })} allowImage />
+            <BackgroundPicker value={board.background} onChange={(background) => S.updateBoard(boardId, { background })} allowImage />
           </>
         )}
       </div>
