@@ -4,7 +4,7 @@ import {
 } from '../../shared/calendar.js';
 import type { AppData, CalendarEvent, Recurrence } from '../../src/types';
 import {
-  calendarItems, clampHourPx, daysLeftText, droppedRange, durationText, EMPTY_CAL_FILTER, fitHourPx, hourLabelStep, MAX_HOUR_PX, resizedRange, selectedRange,
+  calendarItems, clampHourPx, daysLeftText, droppedRange, durationText, EMPTY_CAL_FILTER, eventColorKey, fitHourPx, hourLabelStep, MAX_HOUR_PX, resizedRange, selectedRange,
   shortDayText, timeRangeText, upcomingDeadlines,
 } from '../../src/lib/calendar';
 import * as S from '../../src/store/store';
@@ -293,6 +293,18 @@ describe('calendar store', () => {
     expect(S.getData().events[id].done).toEqual(['2026-09-30']);
     C.deleteEventLabel(labelId);
     expect(S.getData().events[id].labelIds).toEqual([]);
+  });
+
+  it('reorders the labels of every event when labels are reordered', () => {
+    const labelsBefore = S.getData().eventLabels.length;
+    const casa = C.createEventLabel({ name: 'Casa', color: 'green', icon: null });
+    const ocio = C.createEventLabel({ name: 'Ocio', color: 'red', icon: null });
+    const id = C.createEvent(makeEvent('event', '2026-09-30', { labelIds: [casa, ocio] }));
+    expect(eventColorKey(S.getData().events[id], S.getData().eventLabels)).toBe('green');
+    C.moveEventLabel(labelsBefore + 1, labelsBefore);
+    expect(S.getData().eventLabels.slice(labelsBefore).map((l) => l.id)).toEqual([ocio, casa]);
+    expect(S.getData().events[id].labelIds).toEqual([ocio, casa]);
+    expect(eventColorKey(S.getData().events[id], S.getData().eventLabels)).toBe('red');
   });
 });
 

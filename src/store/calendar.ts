@@ -211,8 +211,17 @@ export function deleteEventLabel(labelId: string): void {
   });
 }
 
+/** Reorders the calendar labels and each event's labels with them (the first label gives the event its color). */
 export function moveEventLabel(from: number, to: number): void {
-  mutate((d) => moveInArray(d.eventLabels, from, to));
+  mutate((d) => {
+    moveInArray(d.eventLabels, from, to);
+    const order = new Map(d.eventLabels.map((l, i) => [l.id, i]));
+    for (const event of Object.values(d.events)) {
+      if (event.labelIds.length < 2) continue;
+      const sorted = [...event.labelIds].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+      if (sorted.some((id, i) => id !== event.labelIds[i])) event.labelIds = sorted;
+    }
+  });
 }
 
 export function toggleEventLabel(eventId: string, labelId: string): void {

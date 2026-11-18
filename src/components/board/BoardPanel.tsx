@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 import {
-  Archive, ChevronLeft, Copy, Download, GripVertical, Image, Pencil, Plus, RotateCcw, SlidersHorizontal, Tag, Trash2, X,
+  Archive, ChevronLeft, Copy, Download, Image, RotateCcw, SlidersHorizontal, Tag, Trash2, X,
 } from 'lucide-react';
 import * as S from '../../store/store';
 import { useBoard } from '../../store/hooks';
@@ -10,13 +9,11 @@ import { confirmDialog, openPanel, useUI, type BoardPanel as PanelKind } from '.
 import { useLayer } from '../../lib/layers';
 import { captureFocus } from '../../lib/focus';
 import { getBoardBackground } from '../../lib/backgrounds';
-import { DRAG_HANDLE_INSTRUCTIONS } from '../../lib/dndA11y';
 import { exportBoard } from '../../lib/backup';
 import { navigate } from '../../lib/router';
 import { normalize } from '../../lib/icons';
 import { formatTimestamp } from '../../lib/dates';
-import { LabelChip } from '../common/LabelChip';
-import { LabelEditor } from '../common/LabelEditor';
+import { LabelsManager } from '../common/LabelsManager';
 import { BackgroundPicker } from '../common/BackgroundPicker';
 import { undoToast } from '../contextmenu/menus';
 import { FieldsManager } from './FieldsManager';
@@ -29,7 +26,7 @@ const TITLES: Record<Exclude<PanelKind, null>, string> = {
   background: 'Fondo del tablero',
 };
 
-function LabelsManager({ boardId }: { boardId: string }) {
+function BoardLabels({ boardId }: { boardId: string }) {
   const board = useBoard(boardId);
   const usage = S.useStore((s) => {
     const counts: Record<string, number> = {};
@@ -39,87 +36,24 @@ function LabelsManager({ boardId }: { boardId: string }) {
     }
     return JSON.stringify(counts);
   });
-  const counts: Record<string, number> = JSON.parse(usage);
-  const [editing, setEditing] = useState<string | 'new' | null>(null);
   if (!board) return null;
-
-  if (editing) {
-    const label = board.labels.find((l) => l.id === editing);
-    return (
-      <LabelEditor
-        key={editing}
-        initial={label}
-        onCancel={() => setEditing(null)}
-        onSave={(value) => {
-          if (label) S.updateLabel(boardId, label.id, value);
-          else S.createLabel(boardId, value);
-          setEditing(null);
-        }}
-        onDelete={
-          label
-            ? async () => {
-                const n = counts[label.id] ?? 0;
-                const ok = await confirmDialog({
-                  title: '¿Eliminar etiqueta?',
-                  message: n ? `Se quitará de ${n} tarjeta(s).` : undefined,
-                  confirmText: 'Eliminar',
-                  danger: true,
-                });
-                if (ok) {
-                  S.deleteLabel(boardId, label.id);
-                  setEditing(null);
-                }
-              }
-            : undefined
-        }
-      />
-    );
-  }
-
   return (
-    <div className="labels-manager">
-      <p className="muted small">
-        Arrastra para reordenar. Las 9 primeras se pueden poner con las teclas <kbd>1</kbd>…<kbd>9</kbd> sobre una tarjeta.
-      </p>
-      <DragDropContext
-        onDragEnd={(r) => {
-          if (r.destination && r.destination.index !== r.source.index) S.moveLabel(boardId, r.source.index, r.destination.index);
-        }}
-        dragHandleUsageInstructions={DRAG_HANDLE_INSTRUCTIONS}
-      >
-        <Droppable droppableId="labels">
-          {(provided) => (
-            <div ref={provided.innerRef} {...provided.droppableProps} className="labels-manager__list">
-              {board.labels.map((label, i) => (
-                <Draggable key={label.id} draggableId={label.id} index={i}>
-                  {(p) => (
-                    <div ref={p.innerRef} {...p.draggableProps} className="labels-manager__row">
-                      <span {...p.dragHandleProps} className="drag-handle" aria-label="Arrastrar">
-                        <GripVertical size={14} />
-                      </span>
-                      <span className="labels-manager__index">{i < 9 ? i + 1 : ''}</span>
-                      <button type="button" className="labels-manager__chip" onClick={() => setEditing(label.id)}>
-                        <LabelChip label={label} size="md" />
-                      </button>
-                      <span className="labels-manager__count" title="Tarjetas con esta etiqueta">
-                        {counts[label.id] ?? 0}
-                      </span>
-                      <button type="button" className="icon-btn icon-btn--sm" onClick={() => setEditing(label.id)} aria-label="Editar etiqueta">
-                        <Pencil size={14} />
-                      </button>
-                    </div>
-                  )}
-                </Draggable>
-              ))}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
-      </DragDropContext>
-      <button type="button" className="btn btn--block" onClick={() => setEditing('new')}>
-        <Plus size={15} /> Crear etiqueta
-      </button>
-    </div>
+    <LabelsManager
+      labels={board.labels}
+      counts={JSON.parse(usage)}
+      itemNoun="tarjeta(s)"
+      countTitle="Tarjetas con esta etiqueta"
+      showIndex
+      hint={
+        <>
+          Arrastra para reordenar. Las 9 primeras se pueden poner con las teclas <kbd>1</kbd>…<kbd>9</kbd> sobre una tarjeta.
+        </>
+      }
+      onCreate={(value) => S.createLabel(boardId, value)}
+      onUpdate={(id, value) => S.updateLabel(boardId, id, value)}
+      onDelete={(id) => S.deleteLabel(boardId, id)}
+      onMove={(from, to) => S.moveLabel(boardId, from, to)}
+    />
   );
 }
 
@@ -302,7 +236,7 @@ export function BoardPanel({ boardId }: { boardId: string }) {
       </div>
       <div className="side-panel__body">
         {panel === 'menu' && <MainMenu boardId={boardId} />}
-        {panel === 'labels' && <LabelsManager boardId={boardId} />}
+        {panel === 'labels' && <BoardLabels boardId={boardId} />}
         {panel === 'fields' && <FieldsManager boardId={boardId} />}
         {panel === 'archive' && <ArchivePanel boardId={boardId} />}
         {panel === 'background' && (

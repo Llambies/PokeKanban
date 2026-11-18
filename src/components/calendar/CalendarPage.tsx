@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Filter, List, Pencil, Plus, Rows3, Settings2, Trash2 } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Filter, List, Plus, Rows3, Settings2, Tag, Trash2 } from 'lucide-react';
 import type { CalendarView } from '../../types';
 import * as C from '../../store/calendar';
 import { useStore } from '../../store/store';
 import { deviceTimeZone } from '../../store/factories';
-import { confirmDialog, setPrefs, usePrefs } from '../../store/ui';
+import { setPrefs, usePrefs } from '../../store/ui';
 import { navigate, useRoute } from '../../lib/router';
 import { MONTHS, todayKey } from '../../lib/dates';
 import { colorName } from '../../lib/colors';
@@ -15,7 +15,7 @@ import {
 import { dayToKey, keyToDay, weekdayOf } from '../../../shared/calendar.js';
 import { Popover } from '../common/Popover';
 import { IconGlyph, LabelChip } from '../common/LabelChip';
-import { LabelEditor } from '../common/LabelEditor';
+import { LabelsManager } from '../common/LabelsManager';
 import { openMenuAt } from '../contextmenu/menuStore';
 import { newEvent, newEventMenu } from './actions';
 import { AgendaView, MonthView, WeekView, zoomWeek } from './views';
@@ -50,45 +50,12 @@ function viewTitle(anchor: string, view: CalendarView): string {
 
 /* ----------------------------------------------------------------- filter */
 
-function FilterPanel() {
+function FilterPanel({ onManageLabels }: { onManageLabels: () => void }) {
   const filter = usePrefs((s) => s.calFilter);
   const labels = useStore((s) => s.data.eventLabels);
-  const [editing, setEditing] = useState<string | 'new' | null>(null);
   const set = (patch: Partial<typeof filter>) => setPrefs({ calFilter: { ...filter, ...patch } });
   const toggleKind = (kind: string) =>
     set({ hiddenKinds: filter.hiddenKinds.includes(kind) ? filter.hiddenKinds.filter((k) => k !== kind) : [...filter.hiddenKinds, kind] });
-
-  if (editing) {
-    const label = labels.find((l) => l.id === editing);
-    return (
-      <LabelEditor
-        key={editing}
-        initial={label}
-        onCancel={() => setEditing(null)}
-        onSave={(value) => {
-          if (label) C.updateEventLabel(label.id, value);
-          else C.createEventLabel(value);
-          setEditing(null);
-        }}
-        onDelete={
-          label
-            ? async () => {
-                const ok = await confirmDialog({
-                  title: '¿Eliminar etiqueta?',
-                  message: 'Se quitará de todos los eventos.',
-                  confirmText: 'Eliminar',
-                  danger: true,
-                });
-                if (!ok) return;
-                C.deleteEventLabel(label.id);
-                set({ labelIds: filter.labelIds.filter((id) => id !== label.id) });
-                setEditing(null);
-              }
-            : undefined
-        }
-      />
-    );
-  }
 
   return (
     <div className="cal-filter">
@@ -127,14 +94,11 @@ function FilterPanel() {
               />
               <LabelChip label={label} size="md" title={label.name || colorName(label.color)} />
             </label>
-            <button type="button" className="icon-btn icon-btn--sm" onClick={() => setEditing(label.id)} aria-label="Editar etiqueta">
-              <Pencil size={14} />
-            </button>
           </div>
         ))}
       </div>
-      <button type="button" className="btn btn--block" onClick={() => setEditing('new')}>
-        <Plus size={15} /> Crear etiqueta
+      <button type="button" className="btn btn--block" onClick={onManageLabels}>
+        <Tag size={15} /> Gestionar etiquetas
       </button>
       {isCalFilterActive(filter) && (
         <button type="button" className="btn btn--block btn--subtle" onClick={() => setPrefs({ calFilter: EMPTY_CAL_FILTER })}>
@@ -142,6 +106,34 @@ function FilterPanel() {
         </button>
       )}
     </div>
+  );
+}
+
+/* ----------------------------------------------------------------- labels */
+
+function LabelsPanel() {
+  const labels = useStore((s) => s.data.eventLabels);
+  const usage = useStore((s) => {
+    const counts: Record<string, number> = {};
+    for (const event of Object.values(s.data.events)) for (const id of event.labelIds) counts[id] = (counts[id] ?? 0) + 1;
+    return JSON.stringify(counts);
+  });
+  return (
+    <LabelsManager
+      labels={labels}
+      counts={JSON.parse(usage)}
+      itemNoun="evento(s)"
+      countTitle="Eventos con esta etiqueta"
+      hint="Arrastra para reordenar. Si un evento no tiene color propio, toma el de su primera etiqueta."
+      onCreate={(value) => C.createEventLabel(value)}
+      onUpdate={(id, value) => C.updateEventLabel(id, value)}
+      onDelete={(id) => {
+        C.deleteEventLabel(id);
+        const filter = usePrefs.getState().calFilter;
+        if (filter.labelIds.includes(id)) setPrefs({ calFilter: { ...filter, labelIds: filter.labelIds.filter((l) => l !== id) } });
+      }}
+      onMove={C.moveEventLabel}
+    />
   );
 }
 
@@ -214,7 +206,13 @@ function SettingsPanel() {
 
 /* ------------------------------------------------------------------- page */
 
-type Pop = 'filter' | 'settings' | null;
+type Pop = 'filter' | 'labels' | 'settings' | null;
+
+const POP_TITLES: Record<Exclude<Pop, null>, string> = {
+  filter: 'Filtrar el calendario',
+  labels: 'Etiquetas de eventos',
+  settings: 'Ajustes del calendario',
+};
 
 export function CalendarPage() {
   const route = useRoute();
@@ -294,6 +292,9 @@ export function CalendarPage() {
           <button type="button" className={`btn btn--sm ${isCalFilterActive(filter) ? 'btn--active' : ''}`} onClick={openPop('filter')} aria-expanded={pop.key === 'filter'} aria-label="Filtrar">
             <Filter size={15} /> <span className="cal-toolbar__label">Filtrar</span>
           </button>
+          <button type="button" className="icon-btn" onClick={openPop('labels')} aria-expanded={pop.key === 'labels'} aria-label="Etiquetas" title="Etiquetas">
+            <Tag size={18} />
+          </button>
           <button type="button" className="icon-btn" onClick={openPop('settings')} aria-label="Ajustes del calendario" title="Ajustes del calendario">
             <Settings2 size={18} />
           </button>
@@ -322,10 +323,12 @@ export function CalendarPage() {
         <Popover
           anchor={pop.el}
           onClose={() => setPop({ key: null, el: null })}
-          title={pop.key === 'filter' ? 'Filtrar el calendario' : 'Ajustes del calendario'}
+          title={POP_TITLES[pop.key]}
           width={340}
         >
-          {pop.key === 'filter' ? <FilterPanel /> : <SettingsPanel />}
+          {pop.key === 'filter' && <FilterPanel onManageLabels={() => setPop((p) => ({ ...p, key: 'labels' }))} />}
+          {pop.key === 'labels' && <LabelsPanel />}
+          {pop.key === 'settings' && <SettingsPanel />}
         </Popover>
       )}
     </div>
